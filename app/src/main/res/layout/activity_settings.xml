@@ -72,5 +72,12 @@
             android:layout_height="wrap_content"
             android:text="Save Settings"
             android:layout_marginTop="16dp"/>
+
+        <Button
+            android:id="@+id/btnResetDefaults"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Reset to Default"
+            android:layout_marginTop="8dp"/>
     </LinearLayout>
 </ScrollView>
