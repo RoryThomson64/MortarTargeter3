@@ -29,7 +29,8 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
     private lateinit var btnToggleSatellite: ImageButton
     private lateinit var btnMyLocation: ImageButton
     private lateinit var tvDistance: TextView
-    private lateinit var btnConfirm: Button  // Changed to Button
+    private lateinit var btnConfirm: Button  // For confirming target selection
+    private lateinit var btnMoveMortar: Button // New button to update mortar location
 
     private var myLocation: LatLng? = null
     private var selectedLatLng: LatLng? = null
@@ -48,8 +49,9 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
         btnMyLocation = findViewById(R.id.btnMyLocation)
         tvDistance = findViewById(R.id.tvDistance)
         btnConfirm = findViewById(R.id.btnConfirm)
+        btnMoveMortar = findViewById(R.id.btnMoveMortar)
 
-        // Set up button listeners
+        // Button listeners
         btnClose.setOnClickListener { finish() }
 
         btnToggleSatellite.setOnClickListener {
@@ -87,11 +89,12 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             }
         }
 
+        // When Confirm is pressed, return the selected target location.
         btnConfirm.setOnClickListener {
             if (selectedLatLng == null) {
                 Toast.makeText(this, "Please select a target location", Toast.LENGTH_SHORT).show()
             } else {
-                // Compute distance from myLocation (if available) to selected location
+                // Optionally, compute distance from myLocation to selected target.
                 val distance = myLocation?.let { origin ->
                     computeDistance(origin.latitude, origin.longitude, selectedLatLng!!.latitude, selectedLatLng!!.longitude)
                 } ?: 0.0
@@ -102,6 +105,24 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
                 }
                 setResult(Activity.RESULT_OK, resultIntent)
                 finish()
+            }
+        }
+
+        // New "Move Mortar" button: update mortar location to the dropped pin.
+        btnMoveMortar.setOnClickListener {
+            if (selectedLatLng == null) {
+                Toast.makeText(this, "Please drop a pin to set mortar location", Toast.LENGTH_SHORT).show()
+            } else {
+                myLocation = selectedLatLng
+                // Clear the map and re-add the marker for the new mortar location.
+                mMap.clear()
+                mMap.addMarker(
+                    MarkerOptions()
+                        .position(myLocation!!)
+                        .title("My Location")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                )
+                Toast.makeText(this, "Mortar location updated", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -134,10 +155,10 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLocation, 2f))
         }
 
-        // Set a listener for map clicks to select target location
+        // Set a listener for map clicks to select target location.
         mMap.setOnMapClickListener { latLng ->
             mMap.clear()
-            // Re-add My Location marker if available
+            // Re-add My Location marker if available.
             myLocation?.let {
                 mMap.addMarker(
                     MarkerOptions()
@@ -155,7 +176,7 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             )
             selectedLatLng = latLng
 
-            // Update the distance bar if myLocation is available
+            // Update the distance bar if myLocation is available.
             myLocation?.let { origin ->
                 val distance = computeDistance(origin.latitude, origin.longitude, latLng.latitude, latLng.longitude)
                 tvDistance.text = "Distance: ${"%.1f".format(distance)} m"
@@ -163,7 +184,7 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
         }
     }
 
-    // Compute distance between two points using the Haversine formula
+    // Compute distance between two points using the Haversine formula.
     private fun computeDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)

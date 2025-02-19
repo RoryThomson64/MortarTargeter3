@@ -23,6 +23,11 @@
             android:name=".MapPickerActivity"
             android:exported="true" />
 
+        <!-- Settings Activity -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -32,6 +37,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".HelpActivity"
+            android:exported="true" />
+
     </application>
 
 </manifest>

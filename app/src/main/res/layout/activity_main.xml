@@ -12,6 +12,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+        <!-- Help Button in top right -->
+        <ImageButton
+            android:id="@+id/btnHelp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="end"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_help"
+            android:contentDescription="Help" />
+
         <!-- Display current mortar location -->
         <TextView
             android:id="@+id/tvCurrentLocation"
@@ -183,6 +193,13 @@
             android:text="Maximum Range: "
             android:textSize="16sp"
             android:paddingTop="8dp" />
+
+        <!-- Settings Button -->
+        <Button
+            android:id="@+id/btnSettings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Settings" />
 
         <!-- Calculate Button -->
         <Button
