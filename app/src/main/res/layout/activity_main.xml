@@ -161,6 +161,29 @@
             android:layout_height="wrap_content"
             android:text="Select Target on Map" />
 
+        <!-- Refresh Location Button -->
+        <Button
+            android:id="@+id/btnRefreshLocation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Refresh Location" />
+
+        <!-- Maximum Range Button -->
+        <Button
+            android:id="@+id/btnMaxRange"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Calculate Maximum Range" />
+
+        <!-- Maximum Range Display -->
+        <TextView
+            android:id="@+id/tvMaxRange"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Maximum Range: "
+            android:textSize="16sp"
+            android:paddingTop="8dp" />
+
         <!-- Calculate Button -->
         <Button
             android:id="@+id/btnCalculate"

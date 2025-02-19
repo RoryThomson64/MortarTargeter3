@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
+import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -46,7 +47,12 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     private lateinit var btnOpenMap: Button
     private lateinit var tvResult: TextView
 
-    // Location client
+    // New UI elements for refreshing location and showing maximum range.
+    private lateinit var btnRefreshLocation: Button
+    private lateinit var btnMaxRange: Button
+    private lateinit var tvMaxRange: TextView
+
+    // Location client and current location.
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var currentLocation: Location? = null
 
@@ -60,11 +66,10 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         private const val EARTH_RADIUS = 6371000.0 // meters
 
         // Drag parameters for a non-spherical projectile.
-        // These values are adjustable.
         private const val FRONTAL_DRAG_COEFFICIENT = 0.3
         private const val SIDE_DRAG_COEFFICIENT = 1.2
         private const val FRONTAL_AREA = 0.01    // m² (effective frontal area)
-        private const val SIDE_AREA = 0.015       // m² (effective side area)
+        private const val SIDE_AREA = 0.015      // m² (effective side area)
         private const val AIR_DENSITY = 1.225    // kg/m³
 
         private const val TAG = "MortarTargeter"
@@ -82,10 +87,10 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         return try {
             val inputStream = context.assets.open("apikey.txt")
             val reader = BufferedReader(InputStreamReader(inputStream))
-            reader.readLine().trim() // Read and trim any whitespace
+            reader.readLine().trim() // Read and trim any whitespace.
         } catch (e: Exception) {
             e.printStackTrace()
-            "API_KEY_NOT_FOUND" // Default value if file is missing
+            "API_KEY_NOT_FOUND" // Default value if file is missing.
         }
     }
 
@@ -95,10 +100,10 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
         val apiKey = getApiKey(this)
 
-        // Initialize Google Maps with the API key
+        // Initialize Google Maps with the API key.
         MapsInitializer.initialize(this, Renderer.LATEST, this)
 
-        // Bind UI elements
+        // Bind UI elements.
         tvCurrentLocation = findViewById(R.id.tvCurrentLocation)
         etWindSpeed = findViewById(R.id.etWindSpeed)
         etWindDirection = findViewById(R.id.etWindDirection)
@@ -119,12 +124,19 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         btnCalculate = findViewById(R.id.btnCalculate)
         btnOpenMap = findViewById(R.id.btnOpenMap)
         tvResult = findViewById(R.id.tvResult)
+        // Enable scrolling for long results.
+        tvResult.movementMethod = ScrollingMovementMethod.getInstance()
 
-        // Initialize location provider
+        // Bind new UI elements.
+        btnRefreshLocation = findViewById(R.id.btnRefreshLocation)
+        btnMaxRange = findViewById(R.id.btnMaxRange)
+        tvMaxRange = findViewById(R.id.tvMaxRange)
+
+        // Initialize location provider.
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         requestLocationPermission()
 
-        // Update height difference label (maps SeekBar progress to -50…+50)
+        // Update height difference label (maps SeekBar progress to -50…+50).
         seekBarHeightDiff.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val heightDiff = progress - 50
@@ -134,7 +146,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             override fun onStopTrackingTouch(seekBar: SeekBar?) { }
         })
 
-        // Toggle targeting modes
+        // Toggle targeting modes.
         val rgTargetingMode = findViewById<RadioGroup>(R.id.rgTargetingMode)
         rgTargetingMode.setOnCheckedChangeListener { _, checkedId ->
             if (checkedId == R.id.rbAuto) {
@@ -146,6 +158,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             }
         }
 
+        // Button listeners.
         btnCalculate.setOnClickListener {
             calculateFiringSolution()
         }
@@ -158,9 +171,27 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             }
             startActivityForResult(intent, MAP_PICK_REQUEST_CODE)
         }
+
+        btnRefreshLocation.setOnClickListener {
+            // Refresh the device location.
+            getLastLocation()
+        }
+
+        btnMaxRange.setOnClickListener {
+            // Calculate maximum range using current shell weight and muzzle velocity.
+            val shellWeightGrams = etShellWeight.text.toString().toDoubleOrNull()
+            val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull()
+            if (shellWeightGrams == null || muzzleVelocity == null) {
+                Toast.makeText(this, "Enter valid shell weight and muzzle velocity", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val mass = shellWeightGrams / 1000.0  // Convert grams to kg.
+            val maxRange = calculateMaxRange(muzzleVelocity, mass)
+            tvMaxRange.text = "Maximum Range: ${"%.1f".format(maxRange)} m"
+        }
     }
 
-    // Handle map picker result
+    // Handle map picker result.
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == MAP_PICK_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
@@ -171,7 +202,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
     }
 
-    // Request location permissions
+    // Request location permissions.
     private fun requestLocationPermission() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED ||
@@ -187,7 +218,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
     }
 
-    // Handle permission result
+    // Handle permission result.
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE &&
@@ -199,7 +230,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
     }
 
-    // Get device location
+    // Get device location.
     private fun getLastLocation() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
             == PackageManager.PERMISSION_GRANTED ||
@@ -217,7 +248,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
     }
 
-    // Fetch wind data from wttr.in
+    // Fetch wind data from wttr.in.
     private fun fetchWindData(lat: Double, lon: Double) {
         val url = "https://wttr.in/$lat,$lon?format=j1"
         val request = Request.Builder().url(url).build()
@@ -251,23 +282,17 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     }
 
     // --- Firing Solution Solver ---
-    // 1. Compute a drag-free high-angle initial guess.
-    // 2. Restrict the search interval to ±0.2 rad around that guess.
-    // 3. Use bisection to find the high-angle elevation that (in simulation with drag, side effects, and wind)
-    //    produces the target horizontal range when the projectile crosses the target altitude.
-    //    (If the projectile never reaches the target altitude, force a higher angle.)
-    // 4. Adjust the launch bearing based on the lateral (cross-range) error.
     private fun calculateFiringSolution() {
         if (currentLocation == null) {
             Toast.makeText(this, "Current location not available", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Read inputs
+        // Read inputs.
         val windSpeed = etWindSpeed.text.toString().toDoubleOrNull() ?: 0.0
         val windDirection = etWindDirection.text.toString().toDoubleOrNull() ?: 0.0
         val shellWeightGrams = etShellWeight.text.toString().toDoubleOrNull() ?: 0.0
-        val shellWeight = shellWeightGrams / 1000.0  // kg
+        val shellWeight = shellWeightGrams / 1000.0  // kg.
         val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull() ?: 0.0
         // heightDiff: positive means target is above launch altitude.
         val heightDiff = (seekBarHeightDiff.progress - 50).toDouble()
@@ -295,23 +320,26 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                 Toast.makeText(this, "Enter bearing", Toast.LENGTH_SHORT).show()
                 return
             }
+            // Normalize manual bearing to [0, 360)
+            bearing = (bearing % 360 + 360) % 360
         }
 
-        // Compute wind vector (windDirection is degrees from north)
+        // Compute wind vector (windDirection is degrees from north).
         val windDirRad = Math.toRadians(windDirection)
         val wind_vx = windSpeed * sin(windDirRad)
         val wind_vy = windSpeed * cos(windDirRad)
 
-        // Tolerances and iteration parameters
-        val toleranceRange = 0.5   // meters
-        val toleranceBearing = 0.5 // degrees
+        // Tolerances and iteration parameters.
+        val toleranceRange = 0.5   // meters.
+        val toleranceBearing = 0.5 // degrees.
         val maxBisectionIterations = 20
         val maxOuterIterations = 15
 
         // Use the target bearing as the initial guess for launch bearing.
         var currentLaunchBearing = bearing
 
-        // Inner function: for a fixed launch bearing, find the high-angle elevation (in radians) that yields the desired horizontal range.
+        // Inner function: for a fixed launch bearing, find the high-angle elevation (in radians)
+        // that yields the desired horizontal range.
         fun findElevationForRange(launchBearing: Double): Double {
             // Compute a drag-free high-angle solution as a starting guess.
             val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
@@ -341,7 +369,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                     AIR_DENSITY,
                     heightDiff
                 )
-                // If the projectile never reaches the target altitude (or reaches it only before apex), force a higher angle.
+                // If the projectile never reaches the target altitude (or only before apex), force a higher angle.
                 if (heightDiff >= 0 && simResult.maxZ < heightDiff) {
                     low = mid
                     mid = (low + high) / 2.0
@@ -381,7 +409,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val simX = simResult.impactX
             val simY = simResult.impactY
 
-            // Compute target local coordinates (x east, y north)
+            // Compute target local coordinates (x east, y north).
             val bearingRad = Math.toRadians(bearing)
             val targetX = distance * sin(bearingRad)
             val targetY = distance * cos(bearingRad)
@@ -394,6 +422,9 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val deltaBearingRad = atan2(errorCross, distance)
             val deltaBearingDeg = Math.toDegrees(deltaBearingRad)
             currentLaunchBearing += deltaBearingDeg
+
+            // Normalize current launch bearing.
+            currentLaunchBearing = (currentLaunchBearing % 360 + 360) % 360
 
             // Recompute the required elevation for the new bearing.
             currentElevation = findElevationForRange(currentLaunchBearing)
@@ -457,12 +488,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                 "   Wind: ${"%.2f".format(windSpeed)} m/s @ ${"%.1f".format(windDirection)}°"
     }
 
-    // --- Simulation of Projectile Flight with Side Drag ---
-    // This function integrates the projectile's equations (with drag separated into frontal and side components)
-    // until the projectile crosses the target altitude.
-    // For targetHeight < 0, it stops at the first crossing.
-    // For targetHeight >= 0, it waits until after the apex (vz < 0) and then on the descent.
-    // The timestep (dt) is set to 0.001 for high resolution.
+    // --- Simulation of Projectile Flight with RK4 Integration & Side Drag ---
     private fun simulateProjectile(
         muzzleVelocity: Double,
         elevation: Double,
@@ -476,39 +502,33 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         targetHeight: Double
     ): SimulationResult {
         val launchBearingRad = Math.toRadians(launchBearing)
-        var vx = muzzleVelocity * cos(elevation) * sin(launchBearingRad)
-        var vy = muzzleVelocity * cos(elevation) * cos(launchBearingRad)
-        var vz = muzzleVelocity * sin(elevation)
-        var x = 0.0
-        var y = 0.0
-        var z = 0.0
+        val initialVx = muzzleVelocity * cos(elevation) * sin(launchBearingRad)
+        val initialVy = muzzleVelocity * cos(elevation) * cos(launchBearingRad)
+        val initialVz = muzzleVelocity * sin(elevation)
+        // State vector: [x, y, z, vx, vy, vz]
+        var state = doubleArrayOf(0.0, 0.0, 0.0, initialVx, initialVy, initialVz)
         var t = 0.0
         val dt = 0.001
-        var maxZ = z
+        var maxZ = 0.0
 
-        // Compute the projectile's fixed axis (based on initial firing direction)
+        // Compute fixed axis based on the initial launch direction.
         val axisX = cos(elevation) * sin(launchBearingRad)
         val axisY = cos(elevation) * cos(launchBearingRad)
         val axisZ = sin(elevation)
         val axisMag = sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ)
         val axis = Triple(axisX / axisMag, axisY / axisMag, axisZ / axisMag)
 
-        var prevX = x
-        var prevY = y
-        var prevZ = z
-        var prevT = t
-        var reachedApex = false
-
-        while (t < 100) {
-            t += dt
-            prevX = x; prevY = y; prevZ = z; prevT = t - dt
-
-            // Compute relative velocity (projectile relative to wind)
+        // Derivative function for the state vector.
+        fun derivatives(s: DoubleArray): DoubleArray {
+            val vx = s[3]
+            val vy = s[4]
+            val vz = s[5]
+            // Compute the projectile's relative velocity (ignoring vertical wind).
             val relVx = vx - wind_vx
             val relVy = vy - wind_vy
-            val relVz = vz  // vertical wind is ignored
-            // Decompose relative velocity into components along the projectile's fixed axis and perpendicular.
+            val relVz = vz
             val vRelMag = sqrt(relVx * relVx + relVy * relVy + relVz * relVz)
+            // Decompose relative velocity into components along the fixed launch axis and perpendicular to it.
             val vParallel = relVx * axis.first + relVy * axis.second + relVz * axis.third
             val parallelVx = vParallel * axis.first
             val parallelVy = vParallel * axis.second
@@ -518,63 +538,108 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val perpVz = relVz - parallelVz
             val vPerpMag = sqrt(perpVx * perpVx + perpVy * perpVy + perpVz * perpVz)
 
-            // Frontal (parallel) drag force
+            // Frontal (parallel) drag force.
             val FdParallelMag = 0.5 * rho * (vParallel * vParallel) * frontalCd * FRONTAL_AREA
             val FdParallelX = -FdParallelMag * sign(vParallel) * axis.first
             val FdParallelY = -FdParallelMag * sign(vParallel) * axis.second
             val FdParallelZ = -FdParallelMag * sign(vParallel) * axis.third
 
-            // Side (perpendicular) drag force
+            // Side (perpendicular) drag force.
             val FdSideMag = if (vPerpMag > 0) 0.5 * rho * (vPerpMag * vPerpMag) * sideCd * SIDE_AREA else 0.0
             val FdSideX = if (vPerpMag > 0) -FdSideMag * (perpVx / vPerpMag) else 0.0
             val FdSideY = if (vPerpMag > 0) -FdSideMag * (perpVy / vPerpMag) else 0.0
             val FdSideZ = if (vPerpMag > 0) -FdSideMag * (perpVz / vPerpMag) else 0.0
 
-            // Total drag force components.
             val FdX = FdParallelX + FdSideX
             val FdY = FdParallelY + FdSideY
             val FdZ = FdParallelZ + FdSideZ
 
-            // Accelerations due to drag.
             val ax = FdX / mass
             val ay = FdY / mass
-            val az = FdZ / mass
+            val az = FdZ / mass - GRAVITY
 
-            // Total acceleration (adding gravity in the -z direction)
-            val totalAx = ax
-            val totalAy = ay
-            val totalAz = az - GRAVITY
+            return doubleArrayOf(vx, vy, vz, ax, ay, az)
+        }
 
-            vx += totalAx * dt
-            vy += totalAy * dt
-            vz += totalAz * dt
+        // RK4 integration step.
+        fun rk4Step(s: DoubleArray, dt: Double): DoubleArray {
+            val k1 = derivatives(s)
+            val s2 = DoubleArray(6) { i -> s[i] + 0.5 * dt * k1[i] }
+            val k2 = derivatives(s2)
+            val s3 = DoubleArray(6) { i -> s[i] + 0.5 * dt * k2[i] }
+            val k3 = derivatives(s3)
+            val s4 = DoubleArray(6) { i -> s[i] + dt * k3[i] }
+            val k4 = derivatives(s4)
+            return DoubleArray(6) { i -> s[i] + dt / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) }
+        }
 
-            x += vx * dt
-            y += vy * dt
-            z += vz * dt
-            maxZ = max(maxZ, z)
+        var prevState = state.copyOf()
+        var prevT = t
+        var reachedApex = false
 
-            if (vz < 0) reachedApex = true
+        while (t < 100) {
+            if (state[2] > maxZ) maxZ = state[2]
+            if (state[5] < 0) reachedApex = true
 
+            // Check for crossing the target altitude.
             if (targetHeight < 0) {
-                if ((prevZ - targetHeight) * (z - targetHeight) <= 0) {
-                    val fraction = if ((prevZ - targetHeight) != 0.0) (prevZ - targetHeight) / (prevZ - z) else 1.0
-                    val impactX = prevX + (x - prevX) * fraction
-                    val impactY = prevY + (y - prevY) * fraction
+                if ((prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0) {
+                    val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
+                        (prevState[2] - targetHeight) / (prevState[2] - state[2])
+                    else 1.0
+                    val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
+                    val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
                     val impactT = prevT + (t - prevT) * fraction
                     return SimulationResult(impactX, impactY, impactT, maxZ)
                 }
             } else {
-                if (reachedApex && (prevZ - targetHeight) * (z - targetHeight) <= 0 && vz < 0) {
-                    val fraction = if ((prevZ - targetHeight) != 0.0) (prevZ - targetHeight) / (prevZ - z) else 1.0
-                    val impactX = prevX + (x - prevX) * fraction
-                    val impactY = prevY + (y - prevY) * fraction
+                if (reachedApex && (prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0 && state[5] < 0) {
+                    val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
+                        (prevState[2] - targetHeight) / (prevState[2] - state[2])
+                    else 1.0
+                    val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
+                    val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
                     val impactT = prevT + (t - prevT) * fraction
                     return SimulationResult(impactX, impactY, impactT, maxZ)
                 }
             }
+            prevState = state.copyOf()
+            prevT = t
+            state = rk4Step(state, dt)
+            t += dt
         }
-        return SimulationResult(x, y, t, maxZ)
+        return SimulationResult(state[0], state[1], t, maxZ)
+    }
+
+    // Helper function to compute maximum range given muzzle velocity and mass.
+    private fun calculateMaxRange(muzzleVelocity: Double, mass: Double): Double {
+        var bestRange = 0.0
+        var bestElevation = 0.0
+        val step = 0.01  // radian increment.
+        var angle = 0.1
+        while (angle < (Math.PI / 2 - 0.01)) {
+            // Simulate with zero wind and level ground.
+            val simResult = simulateProjectile(
+                muzzleVelocity,
+                angle,
+                launchBearing = 0.0,
+                wind_vx = 0.0,
+                wind_vy = 0.0,
+                mass,
+                FRONTAL_DRAG_COEFFICIENT,
+                SIDE_DRAG_COEFFICIENT,
+                AIR_DENSITY,
+                targetHeight = 0.0
+            )
+            val range = sqrt(simResult.impactX * simResult.impactX + simResult.impactY * simResult.impactY)
+            if (range > bestRange) {
+                bestRange = range
+                bestElevation = angle
+            }
+            angle += step
+        }
+        Log.d(TAG, "Max range achieved at elevation: ${Math.toDegrees(bestElevation)} degrees")
+        return bestRange
     }
 
     // Haversine formula: calculates the great-circle distance between two coordinates.
