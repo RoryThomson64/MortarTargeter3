@@ -2,6 +2,7 @@ package com.example.mortartargeter3
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
@@ -13,10 +14,15 @@ import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.*
 import okhttp3.*
 import org.json.JSONObject
+import java.io.BufferedReader
 import java.io.IOException
+import java.io.InputStreamReader
 import kotlin.math.*
+import com.google.android.gms.maps.MapsInitializer
+import com.google.android.gms.maps.OnMapsSdkInitializedCallback
+import com.google.android.gms.maps.MapsInitializer.Renderer
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
     // UI elements
     private lateinit var tvCurrentLocation: TextView
@@ -72,9 +78,25 @@ class MainActivity : AppCompatActivity() {
         val maxZ: Double
     )
 
+    fun getApiKey(context: Context): String {
+        return try {
+            val inputStream = context.assets.open("apikey.txt")
+            val reader = BufferedReader(InputStreamReader(inputStream))
+            reader.readLine().trim() // Read and trim any whitespace
+        } catch (e: Exception) {
+            e.printStackTrace()
+            "API_KEY_NOT_FOUND" // Default value if file is missing
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val apiKey = getApiKey(this)
+
+        // Initialize Google Maps with the API key
+        MapsInitializer.initialize(this, Renderer.LATEST, this)
 
         // Bind UI elements
         tvCurrentLocation = findViewById(R.id.tvCurrentLocation)
@@ -593,5 +615,12 @@ class MainActivity : AppCompatActivity() {
         val impactLat = Math.toDegrees(impactLatRad)
         val impactLon = Math.toDegrees(impactLonRad)
         return Pair(impactLat, impactLon)
+    }
+
+    override fun onMapsSdkInitialized(renderer: Renderer) {
+        when (renderer) {
+            Renderer.LATEST -> println("Using latest Google Maps renderer")
+            Renderer.LEGACY -> println("Using legacy Google Maps renderer")
+        }
     }
 }
