@@ -165,7 +165,9 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         // Updated seekBar listener: scale the progress so that the actual height difference is -5 to +5 m.
         seekBarHeightDiff.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val heightDiff = (progress - 50) / 10.0  // Dividing by 10 scales 0-100 to -5 to +5.
+                // Maps progress (0-100) to a value between -50 and +50.
+                val heightDiff = seekBarHeightDiff.progress
+                // Dividing by 10 scales 0-100 to -5 to +5.
                 tvHeightDifferenceLabel.text = "Height Difference (m): $heightDiff"
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) { }
@@ -389,8 +391,8 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val shellWeightGrams = etShellWeight.text.toString().toDoubleOrNull() ?: 0.0
         val shellWeight = shellWeightGrams / 1000.0
         val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull() ?: 0.0
-        // Scale the height difference value to a range of -5 to +5.
-        val heightDiff = (seekBarHeightDiff.progress - 50) / 10.0
+        // Use the raw slider value, which yields a height difference between -50 and +50.
+        val heightDiff = (seekBarHeightDiff.progress - 50).toDouble()
 
         var distance: Double
         var bearing: Double
@@ -541,11 +543,11 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
         Log.d(TAG, "Final simulation: maxZ=${finalSim.maxZ}, targetHeight=$heightDiff")
 
-        // Save the computed shot for confirming fire.
+        // Save the computed shot. For auto mode, use target coordinates from input.
         lastShot = Shot(
             id = System.currentTimeMillis(),
-            impactLat = impactCoordinates.first,
-            impactLon = impactCoordinates.second,
+            impactLat = if (rbAuto.isChecked) etTargetLat.text.toString().toDoubleOrNull() ?: impactCoordinates.first else impactCoordinates.first,
+            impactLon = if (rbAuto.isChecked) etTargetLon.text.toString().toDoubleOrNull() ?: impactCoordinates.second else impactCoordinates.second,
             timestamp = System.currentTimeMillis()
         )
 
@@ -565,7 +567,9 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                 "   Wind: ${"%.2f".format(windSpeed)} m/s @ ${"%.1f".format(windDirection)}°"
     }
 
+
     // --- Simulation using RK4 Integration & Drag Settings ---
+    // Updated simulateProjectile function with an effective target altitude adjustment.
     private fun simulateProjectile(
         muzzleVelocity: Double,
         elevation: Double,
@@ -588,6 +592,9 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         var t = 0.0
         val dt = 0.001
         var maxZ = 0.0
+        var reachedApex = false
+        var prevState = state.copyOf()
+        var prevT = t
 
         // Fixed launch axis.
         val axisX = cos(elevation) * sin(launchBearingRad)
@@ -596,6 +603,9 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val axisMag = sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ)
         val axis = Triple(axisX / axisMag, axisY / axisMag, axisZ / axisMag)
 
+        // Adjust target altitude slightly if >= 0 to ensure proper detection on descent.
+        val effectiveTarget = if (targetHeight >= 0) targetHeight - 0.001 else targetHeight
+
         fun derivatives(s: DoubleArray): DoubleArray {
             val vx = s[3]
             val vy = s[4]
@@ -603,7 +613,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val relVx = vx - wind_vx
             val relVy = vy - wind_vy
             val relVz = vz
-            val vRelMag = sqrt(relVx * relVx + relVy * relVy + relVz * relVz)
             val vParallel = relVx * axis.first + relVy * axis.second + relVz * axis.third
             val parallelVx = vParallel * axis.first
             val parallelVy = vParallel * axis.second
@@ -640,20 +649,30 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             return DoubleArray(6) { i -> s[i] + dt / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) }
         }
 
-        var prevState = state.copyOf()
-        var prevT = t
-        var reachedApex = false
         while (t < 100) {
             if (state[2] > maxZ) maxZ = state[2]
             if (state[5] < 0) reachedApex = true
-            if ((prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
-                val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
-                    (prevState[2] - targetHeight) / (prevState[2] - state[2])
-                else 1.0
-                val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
-                val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
-                val impactT = prevT + (t - prevT) * fraction
-                return SimulationResult(impactX, impactY, impactT, maxZ)
+
+            if (effectiveTarget < 0) {
+                if ((prevState[2] - effectiveTarget) * (state[2] - effectiveTarget) <= 0.0) {
+                    val fraction = if (abs(prevState[2] - effectiveTarget) > 1e-6)
+                        (prevState[2] - effectiveTarget) / (prevState[2] - state[2])
+                    else 1.0
+                    val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
+                    val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
+                    val impactT = prevT + (t - prevT) * fraction
+                    return SimulationResult(impactX, impactY, impactT, maxZ)
+                }
+            } else {
+                if (reachedApex && state[5] < 0 && (prevState[2] - effectiveTarget) * (state[2] - effectiveTarget) <= 0.0) {
+                    val fraction = if (abs(prevState[2] - effectiveTarget) > 1e-6)
+                        (prevState[2] - effectiveTarget) / (prevState[2] - state[2])
+                    else 1.0
+                    val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
+                    val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
+                    val impactT = prevT + (t - prevT) * fraction
+                    return SimulationResult(impactX, impactY, impactT, maxZ)
+                }
             }
             prevState = state.copyOf()
             prevT = t
@@ -662,6 +681,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
         return SimulationResult(state[0], state[1], t, maxZ)
     }
+
 
     // Haversine formula.
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
