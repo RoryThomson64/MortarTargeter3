@@ -16,13 +16,6 @@
             android:orientation="vertical">
 
             <!-- Display local time (optional, also shown in top bar) -->
-            <TextView
-                android:id="@+id/tvLocalTime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Local Time: 00:00"
-                android:textSize="16sp"
-                android:paddingBottom="16dp" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -147,16 +140,6 @@
             android:textSize="20sp"
             android:layout_centerVertical="true"
             android:layout_marginStart="8dp" />
-
-        <TextView
-            android:id="@+id/tvLocalTimeTop"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Local Time: 00:00"
-            android:textSize="16sp"
-            android:layout_centerVertical="true"
-            android:layout_toEndOf="@id/tvTopTitle"
-            android:layout_marginStart="16dp" />
 
         <ImageButton
             android:id="@+id/btnCloseSettings"

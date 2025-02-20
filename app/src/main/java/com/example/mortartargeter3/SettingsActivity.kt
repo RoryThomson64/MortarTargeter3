@@ -59,11 +59,6 @@ class SettingsActivity : AppCompatActivity() {
         btnSave = findViewById(R.id.btnSaveSettings)
         btnResetDefaults = findViewById(R.id.btnResetDefaults)
         btnCloseSettings = findViewById(R.id.btnCloseSettings)
-        tvLocalTime = findViewById(R.id.tvLocalTime)
-
-        // Set local time display.
-        val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-        tvLocalTime.text = "Local Time: ${sdf.format(java.util.Date())}"
 
         // Load current active settings.
         val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
