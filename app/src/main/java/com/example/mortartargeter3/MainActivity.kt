@@ -13,16 +13,19 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.*
+import com.google.android.gms.maps.MapsInitializer
+import com.google.android.gms.maps.MapsInitializer.Renderer
+import com.google.android.gms.maps.OnMapsSdkInitializedCallback
+import com.google.android.gms.maps.model.LatLng
 import okhttp3.*
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import kotlin.math.*
-import com.google.android.gms.maps.MapsInitializer
-import com.google.android.gms.maps.OnMapsSdkInitializedCallback
-import com.google.android.gms.maps.MapsInitializer.Renderer
-import com.google.android.gms.maps.model.LatLng
 import java.io.IOException
+import kotlin.math.*
+import com.google.openlocationcode.OpenLocationCode
+
+
 
 // Top-level SimulationResult for unambiguous access.
 data class SimulationResult(
@@ -61,14 +64,17 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     private lateinit var seekBarHeightDiff: SeekBar
     private lateinit var rbAuto: RadioButton
     private lateinit var rbManual: RadioButton
+    private lateinit var rbPlusCode: RadioButton
     private lateinit var layoutAutoTargeting: LinearLayout
     private lateinit var layoutManualTargeting: LinearLayout
+    private lateinit var layoutPlusCodeTargeting: LinearLayout
     private lateinit var etTargetLat: EditText
     private lateinit var etTargetLon: EditText
     private lateinit var etManualDistance: EditText
     private lateinit var etManualBearing: EditText
     private lateinit var etManualOriginLat: EditText
     private lateinit var etManualOriginLon: EditText
+    private lateinit var etPlusCode: EditText
     private lateinit var btnCalculate: Button
     private lateinit var btnOpenMap: Button
     private lateinit var tvResult: TextView
@@ -98,7 +104,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
     // Helper: load drag settings from SharedPreferences.
     private fun loadDragSettings(): DragSettings {
-        val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("DragSettings", MODE_PRIVATE)
         val frontalCd = prefs.getFloat("frontal_cd", 0.3f).toDouble()
         val sideCd = prefs.getFloat("side_cd", 1.2f).toDouble()
         val frontalArea = prefs.getFloat("frontal_area", 0.01f).toDouble()
@@ -107,6 +113,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         return DragSettings(frontalCd, sideCd, frontalArea, sideArea, airDensity)
     }
 
+    // (Optional) Get API key method remains here for other purposes.
     fun getApiKey(context: Context): String {
         return try {
             val inputStream = context.assets.open("apikey.txt")
@@ -134,14 +141,17 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         seekBarHeightDiff = findViewById(R.id.seekBarHeightDiff)
         rbAuto = findViewById(R.id.rbAuto)
         rbManual = findViewById(R.id.rbManual)
+        rbPlusCode = findViewById(R.id.rbPlusCode)
         layoutAutoTargeting = findViewById(R.id.layoutAutoTargeting)
         layoutManualTargeting = findViewById(R.id.layoutManualTargeting)
+        layoutPlusCodeTargeting = findViewById(R.id.layoutPlusCodeTargeting)
         etTargetLat = findViewById(R.id.etTargetLat)
         etTargetLon = findViewById(R.id.etTargetLon)
         etManualDistance = findViewById(R.id.etManualDistance)
         etManualBearing = findViewById(R.id.etManualBearing)
         etManualOriginLat = findViewById(R.id.etManualOriginLat)
         etManualOriginLon = findViewById(R.id.etManualOriginLon)
+        etPlusCode = findViewById(R.id.etPlusCode)
         btnCalculate = findViewById(R.id.btnCalculate)
         btnOpenMap = findViewById(R.id.btnOpenMap)
         tvResult = findViewById(R.id.tvResult)
@@ -154,6 +164,28 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         btnConfirmFire = findViewById(R.id.btnConfirmFire)
         btnViewShots = findViewById(R.id.btnViewShots)
 
+        // Set up the radio group listener to toggle targeting layouts.
+        val rgTargetingMode = findViewById<RadioGroup>(R.id.rgTargetingMode)
+        rgTargetingMode.setOnCheckedChangeListener { _, checkedId ->
+            when (checkedId) {
+                R.id.rbAuto -> {
+                    layoutAutoTargeting.visibility = View.VISIBLE
+                    layoutManualTargeting.visibility = View.GONE
+                    layoutPlusCodeTargeting.visibility = View.GONE
+                }
+                R.id.rbManual -> {
+                    layoutAutoTargeting.visibility = View.GONE
+                    layoutManualTargeting.visibility = View.VISIBLE
+                    layoutPlusCodeTargeting.visibility = View.GONE
+                }
+                R.id.rbPlusCode -> {
+                    layoutAutoTargeting.visibility = View.GONE
+                    layoutManualTargeting.visibility = View.GONE
+                    layoutPlusCodeTargeting.visibility = View.VISIBLE
+                }
+            }
+        }
+
         // Set Help button listener.
         btnHelp.setOnClickListener {
             startActivity(Intent(this, HelpActivity::class.java))
@@ -162,34 +194,19 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         requestLocationPermission()
 
-        // Updated seekBar listener: scale the progress so that the actual height difference is -5 to +5 m.
+        // SeekBar listener (maps progress to height difference)
         seekBarHeightDiff.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                // Maps progress (0-100) to a value between -50 and +50.
-                val heightDiff = seekBarHeightDiff.progress
-                // Dividing by 10 scales 0-100 to -5 to +5.
-                tvHeightDifferenceLabel.text = "Height Difference (m): $heightDiff"
+                // Here progress (0-100) is used directly; adjust as needed.
+                tvHeightDifferenceLabel.text = "Height Difference (m): $progress"
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) { }
             override fun onStopTrackingTouch(seekBar: SeekBar?) { }
         })
 
-        val rgTargetingMode = findViewById<RadioGroup>(R.id.rgTargetingMode)
-        rgTargetingMode.setOnCheckedChangeListener { _, checkedId ->
-            if (checkedId == R.id.rbAuto) {
-                layoutAutoTargeting.visibility = LinearLayout.VISIBLE
-                layoutManualTargeting.visibility = LinearLayout.GONE
-            } else {
-                layoutAutoTargeting.visibility = LinearLayout.GONE
-                layoutManualTargeting.visibility = LinearLayout.VISIBLE
-            }
-        }
-
         btnCalculate.setOnClickListener {
             calculateFiringSolution()
-            // Show Confirm Fire button after a calculation.
             btnConfirmFire.visibility = View.VISIBLE
-            // Do not hide btnViewShots; it remains visible.
         }
 
         btnOpenMap.setOnClickListener {
@@ -219,7 +236,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
         btnConfirmFire.setOnClickListener {
             if (rbAuto.isChecked) {
-                // In auto mode, use the target coordinates directly.
                 val targetLat = etTargetLat.text.toString().toDoubleOrNull()
                 val targetLon = etTargetLon.text.toString().toDoubleOrNull()
                 if (targetLat == null || targetLon == null) {
@@ -233,7 +249,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                     timestamp = System.currentTimeMillis()
                 )
             } else {
-                // In manual mode, use the computed impact coordinates (which represent the target location).
                 if (lastShot == null) {
                     Toast.makeText(this, "No firing solution available.", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
@@ -241,10 +256,8 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             }
             ShotsManager.addShot(this, lastShot!!)
             Toast.makeText(this, "Shot confirmed and saved.", Toast.LENGTH_SHORT).show()
-            btnConfirmFire.visibility = View.GONE  // Optionally hide only Confirm Fire.
-            // btnViewShots remains visible.
+            btnConfirmFire.visibility = View.GONE
         }
-
 
         btnViewShots.setOnClickListener {
             startActivity(Intent(this, ShotsListActivity::class.java))
@@ -284,107 +297,15 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         return bestRange
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == MAP_PICK_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
-            val updateType = data.getStringExtra("update_type")
-            if (updateType == "mortar") {
-                // Update mortar location in MainActivity.
-                val newLat = data.getDoubleExtra("mortar_lat", 0.0)
-                val newLon = data.getDoubleExtra("mortar_lon", 0.0)
-                currentLocation = LatLng(newLat, newLon)
-                tvCurrentLocation.text = "Current Location: $newLat, $newLon"
-            } else if (updateType == "target") {
-                // In auto targeting mode, update target coordinate fields.
-                if (rbAuto.isChecked) {
-                    val targetLat = data.getDoubleExtra("selected_lat", 0.0)
-                    val targetLon = data.getDoubleExtra("selected_lon", 0.0)
-                    etTargetLat.setText(targetLat.toString())
-                    etTargetLon.setText(targetLon.toString())
-                } else {
-                    // In manual mode, update the origin coordinates.
-                    val originLat = data.getDoubleExtra("selected_lat", 0.0)
-                    val originLon = data.getDoubleExtra("selected_lon", 0.0)
-                    etManualOriginLat.setText(originLat.toString())
-                    etManualOriginLon.setText(originLon.toString())
-                }
-            }
+    // --- Plus Code Decoding ---
+    // Decodes a Plus Code string into latitude/longitude coordinates.
+    private fun decodePlusCode(plusCode: String): Pair<Double, Double>? {
+        return try {
+            val codeArea = OpenLocationCode.decode(plusCode)
+            Pair(codeArea.centerLatitude, codeArea.centerLongitude)
+        } catch (e: Exception) {
+            null
         }
-    }
-
-    private fun requestLocationPermission() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED ||
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                LOCATION_PERMISSION_REQUEST_CODE
-            )
-        } else {
-            getLastLocation()
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE &&
-            grantResults.isNotEmpty() &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            getLastLocation()
-        } else {
-            Toast.makeText(this, "Location permission required!", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun getLastLocation() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            == PackageManager.PERMISSION_GRANTED ||
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-            == PackageManager.PERMISSION_GRANTED) {
-            LocationServices.getFusedLocationProviderClient(this).lastLocation.addOnSuccessListener { location ->
-                if (location != null) {
-                    currentLocation = LatLng(location.latitude, location.longitude)
-                    tvCurrentLocation.text = "Current Location: ${location.latitude}, ${location.longitude}"
-                    fetchWindData(location.latitude, location.longitude)
-                } else {
-                    tvCurrentLocation.text = "Current Location: Unknown"
-                }
-            }
-        }
-    }
-
-    private fun fetchWindData(lat: Double, lon: Double) {
-        val url = "https://wttr.in/$lat,$lon?format=j1"
-        val request = Request.Builder().url(url).build()
-        val client = OkHttpClient()
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity, "Failed to fetch weather data", Toast.LENGTH_SHORT).show()
-                }
-            }
-            override fun onResponse(call: Call, response: Response) {
-                response.body?.string()?.let { jsonString ->
-                    try {
-                        val jsonObject = JSONObject(jsonString)
-                        val currentCondition = jsonObject.getJSONArray("current_condition").getJSONObject(0)
-                        val windSpeedKmph = currentCondition.getString("windspeedKmph").toDouble()
-                        val windSpeed = windSpeedKmph / 3.6
-                        val windDirDegree = currentCondition.getString("winddirDegree").toDouble()
-                        runOnUiThread {
-                            etWindSpeed.setText(windSpeed.toString())
-                            etWindDirection.setText(windDirDegree.toString())
-                        }
-                    } catch (e: Exception) {
-                        runOnUiThread {
-                            Toast.makeText(this@MainActivity, "Error parsing weather data", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-        })
     }
 
     // --- Firing Solution Solver ---
@@ -399,39 +320,69 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val shellWeightGrams = etShellWeight.text.toString().toDoubleOrNull() ?: 0.0
         val shellWeight = shellWeightGrams / 1000.0
         val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull() ?: 0.0
-        // Use the raw slider value, which yields a height difference between -50 and +50.
+        // Map seekBar progress (assumed 0-100) to a height difference value.
         val heightDiff = (seekBarHeightDiff.progress - 50).toDouble()
 
-        var distance: Double
-        var bearing: Double
-        if (rbAuto.isChecked) {
-            val targetLat = etTargetLat.text.toString().toDoubleOrNull() ?: run {
-                Toast.makeText(this, "Enter target latitude", Toast.LENGTH_SHORT).show()
-                return
+        when {
+            rbPlusCode.isChecked -> {
+                // Use Plus Code input.
+                val plusCodeInput = etPlusCode.text.toString().trim()
+                if (plusCodeInput.isEmpty()) {
+                    Toast.makeText(this, "Enter a Plus Code", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val coordinates = decodePlusCode(plusCodeInput)
+                if (coordinates == null) {
+                    Toast.makeText(this, "Invalid Plus Code", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                proceedWithFiringSolution(coordinates.first, coordinates.second, settings, windSpeed, windDirection, shellWeight, muzzleVelocity, heightDiff)
             }
-            val targetLon = etTargetLon.text.toString().toDoubleOrNull() ?: run {
-                Toast.makeText(this, "Enter target longitude", Toast.LENGTH_SHORT).show()
-                return
+            rbAuto.isChecked -> {
+                val targetLat = etTargetLat.text.toString().toDoubleOrNull() ?: run {
+                    Toast.makeText(this, "Enter target latitude", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val targetLon = etTargetLon.text.toString().toDoubleOrNull() ?: run {
+                    Toast.makeText(this, "Enter target longitude", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                proceedWithFiringSolution(targetLat, targetLon, settings, windSpeed, windDirection, shellWeight, muzzleVelocity, heightDiff)
             }
-            distance = calculateDistance(currentLocation!!.latitude, currentLocation!!.longitude, targetLat, targetLon)
-            bearing = calculateBearing(currentLocation!!.latitude, currentLocation!!.longitude, targetLat, targetLon)
-        } else {
-            distance = etManualDistance.text.toString().toDoubleOrNull() ?: run {
-                Toast.makeText(this, "Enter distance", Toast.LENGTH_SHORT).show()
-                return
+            else -> { // Manual mode.
+                val distance = etManualDistance.text.toString().toDoubleOrNull() ?: run {
+                    Toast.makeText(this, "Enter distance", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val bearing = etManualBearing.text.toString().toDoubleOrNull() ?: run {
+                    Toast.makeText(this, "Enter bearing", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val computedCoordinates = computeImpactCoordinates(currentLocation!!.latitude, currentLocation!!.longitude, distance, bearing)
+                proceedWithFiringSolution(computedCoordinates.first, computedCoordinates.second, settings, windSpeed, windDirection, shellWeight, muzzleVelocity, heightDiff)
             }
-            bearing = etManualBearing.text.toString().toDoubleOrNull() ?: run {
-                Toast.makeText(this, "Enter bearing", Toast.LENGTH_SHORT).show()
-                return
-            }
-            bearing = (bearing % 360 + 360) % 360
         }
+    }
 
+    private fun proceedWithFiringSolution(
+        targetLat: Double,
+        targetLon: Double,
+        settings: DragSettings,
+        windSpeed: Double,
+        windDirection: Double,
+        shellWeight: Double,
+        muzzleVelocity: Double,
+        heightDiff: Double
+    ) {
+        // Calculate distance and bearing from current location to target.
+        val distance = calculateDistance(currentLocation!!.latitude, currentLocation!!.longitude, targetLat, targetLon)
+        val bearing = calculateBearing(currentLocation!!.latitude, currentLocation!!.longitude, targetLat, targetLon)
         val windDirRad = Math.toRadians(windDirection)
         val wind_vx = windSpeed * sin(windDirRad)
         val wind_vy = windSpeed * cos(windDirRad)
 
-        val toleranceRange = 0.5  // meters.
+        // Tolerances and iteration limits.
+        val toleranceRange = 0.5   // meters.
         val toleranceBearing = 0.5 // degrees.
         val maxBisectionIterations = 20
         val maxOuterIterations = 15
@@ -466,11 +417,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                     settings.airDensity,
                     heightDiff
                 )
-                if (heightDiff >= 0 && simResult.maxZ < heightDiff) {
-                    low = mid
-                    mid = (low + high) / 2.0
-                    continue
-                }
                 val simRange = sqrt(simResult.impactX * simResult.impactX + simResult.impactY * simResult.impactY)
                 val diff = simRange - distance
                 if (abs(diff) < toleranceRange) return mid
@@ -549,13 +495,11 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val dragFreeHighAngle = (Math.PI / 2) - lowAngle + atan2(heightDiff, distance)
         val baseElevationDeg = Math.toDegrees(dragFreeHighAngle)
 
-        Log.d(TAG, "Final simulation: maxZ=${finalSim.maxZ}, targetHeight=$heightDiff")
-
-        // Save the computed shot. For auto mode, use target coordinates from input.
+        // Save the computed shot.
         lastShot = Shot(
             id = System.currentTimeMillis(),
-            impactLat = if (rbAuto.isChecked) etTargetLat.text.toString().toDoubleOrNull() ?: impactCoordinates.first else impactCoordinates.first,
-            impactLon = if (rbAuto.isChecked) etTargetLon.text.toString().toDoubleOrNull() ?: impactCoordinates.second else impactCoordinates.second,
+            impactLat = if (rbAuto.isChecked || rbPlusCode.isChecked) etTargetLat.text.toString().toDoubleOrNull() ?: impactCoordinates.first else impactCoordinates.first,
+            impactLon = if (rbAuto.isChecked || rbPlusCode.isChecked) etTargetLon.text.toString().toDoubleOrNull() ?: impactCoordinates.second else impactCoordinates.second,
             timestamp = System.currentTimeMillis()
         )
 
@@ -575,9 +519,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                 "   Wind: ${"%.2f".format(windSpeed)} m/s @ ${"%.1f".format(windDirection)}°"
     }
 
-
     // --- Simulation using RK4 Integration & Drag Settings ---
-    // Updated simulateProjectile function with an effective target altitude adjustment.
     private fun simulateProjectile(
         muzzleVelocity: Double,
         elevation: Double,
@@ -690,7 +632,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         return SimulationResult(state[0], state[1], t, maxZ)
     }
 
-
     // Haversine formula.
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val dLat = Math.toRadians(lat2 - lat1)
@@ -733,5 +674,80 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             Renderer.LATEST -> println("Using latest Google Maps renderer")
             Renderer.LEGACY -> println("Using legacy Google Maps renderer")
         }
+    }
+
+    private fun requestLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        } else {
+            getLastLocation()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE &&
+            grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            getLastLocation()
+        } else {
+            Toast.makeText(this, "Location permission required!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun getLastLocation() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED) {
+            LocationServices.getFusedLocationProviderClient(this).lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    currentLocation = LatLng(location.latitude, location.longitude)
+                    tvCurrentLocation.text = "Current Location: ${location.latitude}, ${location.longitude}"
+                    fetchWindData(location.latitude, location.longitude)
+                } else {
+                    tvCurrentLocation.text = "Current Location: Unknown"
+                }
+            }
+        }
+    }
+
+    private fun fetchWindData(lat: Double, lon: Double) {
+        val url = "https://wttr.in/$lat,$lon?format=j1"
+        val request = Request.Builder().url(url).build()
+        val client = OkHttpClient()
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "Failed to fetch weather data", Toast.LENGTH_SHORT).show()
+                }
+            }
+            override fun onResponse(call: Call, response: Response) {
+                response.body?.string()?.let { jsonString ->
+                    try {
+                        val jsonObject = JSONObject(jsonString)
+                        val currentCondition = jsonObject.getJSONArray("current_condition").getJSONObject(0)
+                        val windSpeedKmph = currentCondition.getString("windspeedKmph").toDouble()
+                        val windSpeed = windSpeedKmph / 3.6
+                        val windDirDegree = currentCondition.getString("winddirDegree").toDouble()
+                        runOnUiThread {
+                            etWindSpeed.setText(windSpeed.toString())
+                            etWindDirection.setText(windDirDegree.toString())
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, "Error parsing weather data", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        })
     }
 }

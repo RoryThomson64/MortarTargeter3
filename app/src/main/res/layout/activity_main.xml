@@ -31,18 +31,19 @@
             android:contentDescription="Help" />
     </RelativeLayout>
 
-    <!-- Main Content -->
+    <!-- Main Content wrapped in a ScrollView with one child -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         tools:context=".MainActivity">
+
+        <!-- Single direct child container -->
         <LinearLayout
             android:orientation="vertical"
             android:padding="16dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <!-- Removed the previous help button from here -->
             <TextView
                 android:id="@+id/tvCurrentLocation"
                 android:layout_width="match_parent"
@@ -108,15 +109,21 @@
                     android:id="@+id/rbAuto"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Auto (Coordinates)"
+                    android:text="Coordinates"
                     android:checked="true" />
                 <RadioButton
                     android:id="@+id/rbManual"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Manual (Dist/Bear)" />
+                    android:text="Manual" />
+                <RadioButton
+                    android:id="@+id/rbPlusCode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Plus Code" />
             </RadioGroup>
 
+            <!-- Auto Targeting Layout -->
             <LinearLayout
                 android:id="@+id/layoutAutoTargeting"
                 android:orientation="vertical"
@@ -137,6 +144,7 @@
                     android:inputType="numberSigned|numberDecimal" />
             </LinearLayout>
 
+            <!-- Manual Targeting Layout -->
             <LinearLayout
                 android:id="@+id/layoutManualTargeting"
                 android:visibility="gone"
@@ -173,6 +181,22 @@
                     android:layout_height="wrap_content"
                     android:hint="Origin Longitude (default: current location)"
                     android:inputType="numberSigned|numberDecimal" />
+            </LinearLayout>
+
+            <!-- Plus Code Targeting Layout -->
+            <LinearLayout
+                android:id="@+id/layoutPlusCodeTargeting"
+                android:visibility="gone"
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp">
+                <EditText
+                    android:id="@+id/etPlusCode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Enter Plus Code (e.g. 7FG9V2W8+Q2)"
+                    android:inputType="text" />
             </LinearLayout>
 
             <Button
