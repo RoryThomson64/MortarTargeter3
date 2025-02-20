@@ -31,8 +31,9 @@ class FieldActivity : AppCompatActivity() {
         }
 
         btnDone.setOnClickListener {
-            // Keep the activity open or perform any final actions.
-            Toast.makeText(this, "Field mode completed", Toast.LENGTH_SHORT).show()
+            // When "Done" is clicked, exit Field Mode.
+            Toast.makeText(this, "Exiting Field Mode", Toast.LENGTH_SHORT).show()
+            finish()
         }
     }
 
@@ -45,7 +46,7 @@ class FieldActivity : AppCompatActivity() {
             val lon = data.getDoubleExtra("selected_lon", 0.0)
 
             if (plusCode != null) {
-                tvPlusCodeResult.text = "Plus Code: $plusCode"
+                tvPlusCodeResult.text = "$plusCode"
                 Toast.makeText(this, "Target: $lat, $lon\nPlus Code: $plusCode", Toast.LENGTH_LONG).show()
             } else {
                 Toast.makeText(this, "Error retrieving Plus Code", Toast.LENGTH_SHORT).show()

@@ -82,18 +82,4 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginBottom="16dp" />
 
-    <!-- Plus Code Result TextView: Centered above Distance bar -->
-    <TextView
-        android:id="@+id/tvPlusCodeResult"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Plus Code will appear here"
-        android:textSize="18sp"
-        android:background="#AAFFFFFF"
-        android:padding="8dp"
-        app:layout_constraintBottom_toTopOf="@id/tvDistance"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginBottom="16dp" />
-
 </androidx.constraintlayout.widget.ConstraintLayout>
