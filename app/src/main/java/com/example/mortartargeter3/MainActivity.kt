@@ -295,11 +295,19 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                 currentLocation = LatLng(newLat, newLon)
                 tvCurrentLocation.text = "Current Location: $newLat, $newLon"
             } else if (updateType == "target") {
-                // Update target coordinates.
-                val targetLat = data.getDoubleExtra("selected_lat", 0.0)
-                val targetLon = data.getDoubleExtra("selected_lon", 0.0)
-                etTargetLat.setText(targetLat.toString())
-                etTargetLon.setText(targetLon.toString())
+                // In auto targeting mode, update target coordinate fields.
+                if (rbAuto.isChecked) {
+                    val targetLat = data.getDoubleExtra("selected_lat", 0.0)
+                    val targetLon = data.getDoubleExtra("selected_lon", 0.0)
+                    etTargetLat.setText(targetLat.toString())
+                    etTargetLon.setText(targetLon.toString())
+                } else {
+                    // In manual mode, update the origin coordinates.
+                    val originLat = data.getDoubleExtra("selected_lat", 0.0)
+                    val originLon = data.getDoubleExtra("selected_lon", 0.0)
+                    etManualOriginLat.setText(originLat.toString())
+                    etManualOriginLon.setText(originLon.toString())
+                }
             }
         }
     }
