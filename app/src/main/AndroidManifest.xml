@@ -28,6 +28,16 @@
             android:name=".SettingsActivity"
             android:exported="true" />
 
+        <!-- Help Activity -->
+        <activity
+            android:name=".HelpActivity"
+            android:exported="true" />
+
+        <!-- Shots List Activity -->
+        <activity
+            android:name=".ShotsListActivity"
+            android:exported="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -37,10 +47,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".HelpActivity"
-            android:exported="true" />
 
     </application>
 

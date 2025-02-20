@@ -5,10 +5,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
 import android.util.Log
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -41,6 +41,14 @@ data class DragSettings(
     val airDensity: Double
 )
 
+// Data class for a fired shot.
+data class Shot(
+    val id: Long,
+    val impactLat: Double,
+    val impactLon: Double,
+    val timestamp: Long
+)
+
 class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
     // UI elements.
@@ -68,11 +76,17 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     private lateinit var btnMaxRange: Button
     private lateinit var tvMaxRange: TextView
     private lateinit var btnSettings: Button
-    private lateinit var btnHelp: ImageButton  // New Help button
+    private lateinit var btnHelp: ImageButton
+    private lateinit var btnConfirmFire: Button
+    private lateinit var btnViewShots: Button
 
-    // Location client.
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+
+    // Location is stored as LatLng.
     private var currentLocation: LatLng? = null
+
+    // The most recent calculated shot.
+    private var lastShot: Shot? = null
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1000
@@ -108,7 +122,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Initialize Google Maps.
         MapsInitializer.initialize(this, Renderer.LATEST, this)
 
         // Bind UI elements.
@@ -137,7 +150,9 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         btnMaxRange = findViewById(R.id.btnMaxRange)
         tvMaxRange = findViewById(R.id.tvMaxRange)
         btnSettings = findViewById(R.id.btnSettings)
-        btnHelp = findViewById(R.id.btnHelp) // Bind the Help button
+        btnHelp = findViewById(R.id.btnHelp)
+        btnConfirmFire = findViewById(R.id.btnConfirmFire)
+        btnViewShots = findViewById(R.id.btnViewShots)
 
         // Set Help button listener.
         btnHelp.setOnClickListener {
@@ -147,9 +162,10 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         requestLocationPermission()
 
+        // Updated seekBar listener: scale the progress so that the actual height difference is -5 to +5 m.
         seekBarHeightDiff.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val heightDiff = progress - 50
+                val heightDiff = (progress - 50) / 10.0  // Dividing by 10 scales 0-100 to -5 to +5.
                 tvHeightDifferenceLabel.text = "Height Difference (m): $heightDiff"
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) { }
@@ -167,7 +183,13 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             }
         }
 
-        btnCalculate.setOnClickListener { calculateFiringSolution() }
+        btnCalculate.setOnClickListener {
+            calculateFiringSolution()
+            // Show Confirm Fire button after a calculation.
+            btnConfirmFire.visibility = View.VISIBLE
+            // Do not hide btnViewShots; it remains visible.
+        }
+
         btnOpenMap.setOnClickListener {
             val intent = Intent(this, MapPickerActivity::class.java)
             currentLocation?.let { location ->
@@ -191,6 +213,39 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
         btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        btnConfirmFire.setOnClickListener {
+            if (rbAuto.isChecked) {
+                // In auto mode, use the target coordinates directly.
+                val targetLat = etTargetLat.text.toString().toDoubleOrNull()
+                val targetLon = etTargetLon.text.toString().toDoubleOrNull()
+                if (targetLat == null || targetLon == null) {
+                    Toast.makeText(this, "Target coordinates missing.", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                lastShot = Shot(
+                    id = System.currentTimeMillis(),
+                    impactLat = targetLat,
+                    impactLon = targetLon,
+                    timestamp = System.currentTimeMillis()
+                )
+            } else {
+                // In manual mode, use the computed impact coordinates (which represent the target location).
+                if (lastShot == null) {
+                    Toast.makeText(this, "No firing solution available.", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+            }
+            ShotsManager.addShot(this, lastShot!!)
+            Toast.makeText(this, "Shot confirmed and saved.", Toast.LENGTH_SHORT).show()
+            btnConfirmFire.visibility = View.GONE  // Optionally hide only Confirm Fire.
+            // btnViewShots remains visible.
+        }
+
+
+        btnViewShots.setOnClickListener {
+            startActivity(Intent(this, ShotsListActivity::class.java))
         }
     }
 
@@ -227,7 +282,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         return bestRange
     }
 
-
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == MAP_PICK_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
@@ -247,7 +301,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             }
         }
     }
-
 
     private fun requestLocationPermission() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -280,7 +333,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             == PackageManager.PERMISSION_GRANTED ||
             ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
             == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            LocationServices.getFusedLocationProviderClient(this).lastLocation.addOnSuccessListener { location ->
                 if (location != null) {
                     currentLocation = LatLng(location.latitude, location.longitude)
                     tvCurrentLocation.text = "Current Location: ${location.latitude}, ${location.longitude}"
@@ -289,7 +342,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                     tvCurrentLocation.text = "Current Location: Unknown"
                 }
             }
-
         }
     }
 
@@ -337,7 +389,8 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val shellWeightGrams = etShellWeight.text.toString().toDoubleOrNull() ?: 0.0
         val shellWeight = shellWeightGrams / 1000.0
         val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull() ?: 0.0
-        val heightDiff = (seekBarHeightDiff.progress - 50).toDouble()
+        // Scale the height difference value to a range of -5 to +5.
+        val heightDiff = (seekBarHeightDiff.progress - 50) / 10.0
 
         var distance: Double
         var bearing: Double
@@ -488,6 +541,14 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
         Log.d(TAG, "Final simulation: maxZ=${finalSim.maxZ}, targetHeight=$heightDiff")
 
+        // Save the computed shot for confirming fire.
+        lastShot = Shot(
+            id = System.currentTimeMillis(),
+            impactLat = impactCoordinates.first,
+            impactLon = impactCoordinates.second,
+            timestamp = System.currentTimeMillis()
+        )
+
         tvResult.text = "Firing Solution with Drag & Side Drag:\n\n" +
                 "Target Distance: ${"%.1f".format(distance)} m\n" +
                 "Target Bearing: ${"%.1f".format(bearing)}°\n\n" +
@@ -527,28 +588,22 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         var t = 0.0
         val dt = 0.001
         var maxZ = 0.0
-        var reachedApex = false
-        var prevState = state.copyOf()
-        var prevT = t
 
-        // Compute fixed launch axis.
+        // Fixed launch axis.
         val axisX = cos(elevation) * sin(launchBearingRad)
         val axisY = cos(elevation) * cos(launchBearingRad)
         val axisZ = sin(elevation)
         val axisMag = sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ)
         val axis = Triple(axisX / axisMag, axisY / axisMag, axisZ / axisMag)
 
-        // Local function: compute derivatives of the state.
         fun derivatives(s: DoubleArray): DoubleArray {
             val vx = s[3]
             val vy = s[4]
             val vz = s[5]
-            // Relative velocity (ignoring vertical wind)
             val relVx = vx - wind_vx
             val relVy = vy - wind_vy
             val relVz = vz
             val vRelMag = sqrt(relVx * relVx + relVy * relVy + relVz * relVz)
-            // Decompose into components along the fixed axis and perpendicular.
             val vParallel = relVx * axis.first + relVy * axis.second + relVz * axis.third
             val parallelVx = vParallel * axis.first
             val parallelVy = vParallel * axis.second
@@ -557,7 +612,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val perpVy = relVy - parallelVy
             val perpVz = relVz - parallelVz
             val vPerpMag = sqrt(perpVx * perpVx + perpVy * perpVy + perpVz * perpVz)
-            // Compute drag forces.
             val FdParallelMag = 0.5 * rho * (vParallel * vParallel) * frontalCd * frontalArea
             val FdParallelX = -FdParallelMag * sign(vParallel) * axis.first
             val FdParallelY = -FdParallelMag * sign(vParallel) * axis.second
@@ -569,14 +623,12 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val FdX = FdParallelX + FdSideX
             val FdY = FdParallelY + FdSideY
             val FdZ = FdParallelZ + FdSideZ
-            // Accelerations (adding gravity in -z).
             val ax = FdX / mass
             val ay = FdY / mass
             val az = FdZ / mass - 9.81
             return doubleArrayOf(vx, vy, vz, ax, ay, az)
         }
 
-        // Local function: RK4 integration step.
         fun rk4Step(s: DoubleArray, dt: Double): DoubleArray {
             val k1 = derivatives(s)
             val s2 = DoubleArray(6) { i -> s[i] + 0.5 * dt * k1[i] }
@@ -588,32 +640,20 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             return DoubleArray(6) { i -> s[i] + dt / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) }
         }
 
+        var prevState = state.copyOf()
+        var prevT = t
+        var reachedApex = false
         while (t < 100) {
             if (state[2] > maxZ) maxZ = state[2]
             if (state[5] < 0) reachedApex = true
-
-            if (targetHeight < 0) {
-                // For targets below launch altitude, detect crossing immediately.
-                if ((prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
-                    val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
-                        (prevState[2] - targetHeight) / (prevState[2] - state[2])
-                    else 1.0
-                    val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
-                    val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
-                    val impactT = prevT + (t - prevT) * fraction
-                    return SimulationResult(impactX, impactY, impactT, maxZ)
-                }
-            } else {
-                // For targets at or above launch altitude, wait until after apex and descent.
-                if (reachedApex && state[5] < 0 && (prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
-                    val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
-                        (prevState[2] - targetHeight) / (prevState[2] - state[2])
-                    else 1.0
-                    val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
-                    val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
-                    val impactT = prevT + (t - prevT) * fraction
-                    return SimulationResult(impactX, impactY, impactT, maxZ)
-                }
+            if ((prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
+                val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
+                    (prevState[2] - targetHeight) / (prevState[2] - state[2])
+                else 1.0
+                val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
+                val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
+                val impactT = prevT + (t - prevT) * fraction
+                return SimulationResult(impactX, impactY, impactT, maxZ)
             }
             prevState = state.copyOf()
             prevT = t
@@ -622,7 +662,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
         return SimulationResult(state[0], state[1], t, maxZ)
     }
-
 
     // Haversine formula.
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
