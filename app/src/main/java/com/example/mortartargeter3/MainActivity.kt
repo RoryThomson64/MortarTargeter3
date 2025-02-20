@@ -106,10 +106,10 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         super.onActivityResult(requestCode, resultCode, data)
         if ( resultCode == Activity.RESULT_OK) {
             data?.let {
-                val updateType = it.getStringExtra("update_type")
+
                 val selectedLat = it.getDoubleExtra("selected_lat", 0.0)
                 val selectedLon = it.getDoubleExtra("selected_lon", 0.0)
-                val distance = it.getDoubleExtra("distance", 0.0)
+
 
                 etTargetLat.setText(selectedLat.toString())
                 etTargetLon.setText(selectedLon.toString())
