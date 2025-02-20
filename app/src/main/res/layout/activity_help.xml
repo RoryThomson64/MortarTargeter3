@@ -1,16 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/frameHelp"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Scrollable Help Content -->
+    <!-- Header similar to Settings -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="#CCCCCC"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/tvTopTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Help"
+            android:textSize="20sp"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="8dp" />
+
+        <ImageButton
+            android:id="@+id/btnCloseHelp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentEnd="true"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Close Help" />
+    </RelativeLayout>
+
+    <!-- Main Content -->
     <ScrollView
         android:id="@+id/scrollViewHelp"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:padding="16dp">
-
         <TextView
             android:id="@+id/tvHelpContent"
             android:layout_width="match_parent"
@@ -18,14 +43,4 @@
             android:textSize="16sp"/>
     </ScrollView>
 
-    <!-- Exit (X) Button in top-right -->
-    <ImageButton
-        android:id="@+id/btnCloseHelp"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="16dp"
-        android:background="@android:color/transparent"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:contentDescription="Close Help" />
-</FrameLayout>
+</LinearLayout>

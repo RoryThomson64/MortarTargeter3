@@ -1,243 +1,241 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    android:layout_height="match_parent">
 
-    <LinearLayout
-        android:orientation="vertical"
-        android:padding="16dp"
+    <!-- Header with title and help button -->
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="60dp"
+        android:background="#CCCCCC"
+        android:padding="8dp">
 
-        <!-- Help Button in top right -->
+        <TextView
+            android:id="@+id/tvTopTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Mortar Targeter 3"
+            android:textSize="20sp"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="8dp" />
+
         <ImageButton
             android:id="@+id/btnHelp"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_gravity="end"
+            android:layout_alignParentEnd="true"
             android:background="@android:color/transparent"
             android:src="@android:drawable/ic_menu_help"
             android:contentDescription="Help" />
+    </RelativeLayout>
 
-        <!-- Display current mortar location -->
-        <TextView
-            android:id="@+id/tvCurrentLocation"
+    <!-- Main Content -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:context=".MainActivity">
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="16dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Current Location: Unknown"
-            android:textSize="16sp"
-            android:padding="8dp" />
+            android:layout_height="wrap_content">
 
-        <!-- Wind Speed Input -->
-        <EditText
-            android:id="@+id/etWindSpeed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Wind Speed (m/s)"
-            android:inputType="numberDecimal" />
+            <!-- Removed the previous help button from here -->
+            <TextView
+                android:id="@+id/tvCurrentLocation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Current Location: Unknown"
+                android:textSize="16sp"
+                android:padding="8dp" />
 
-        <!-- Wind Direction Input -->
-        <EditText
-            android:id="@+id/etWindDirection"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Wind Direction (°)"
-            android:inputType="numberDecimal" />
+            <EditText
+                android:id="@+id/etWindSpeed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Wind Speed (m/s)"
+                android:inputType="numberDecimal" />
 
-        <!-- Shell Weight Input in grams -->
-        <EditText
-            android:id="@+id/etShellWeight"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Shell Weight (g)"
-            android:inputType="numberDecimal" />
+            <EditText
+                android:id="@+id/etWindDirection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Wind Direction (°)"
+                android:inputType="numberDecimal" />
 
-        <!-- Muzzle Velocity Input -->
-        <EditText
-            android:id="@+id/etMuzzleVelocity"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Muzzle Velocity (m/s)"
-            android:inputType="numberDecimal" />
+            <EditText
+                android:id="@+id/etShellWeight"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Shell Weight (g)"
+                android:inputType="numberDecimal" />
 
-        <!-- Height Difference Slider Label -->
-        <TextView
-            android:id="@+id/tvHeightDifferenceLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Height Difference (m): 0" />
+            <EditText
+                android:id="@+id/etMuzzleVelocity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Muzzle Velocity (m/s)"
+                android:inputType="numberDecimal" />
 
-        <!-- Height Difference Slider (Range: -50 to +50) -->
-        <SeekBar
-            android:id="@+id/seekBarHeightDiff"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:min="-50"
-            android:max="50"
-            android:progress="0" />
-
-
-        <!-- Toggle for targeting mode -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Targeting Mode:"
-            android:paddingTop="16dp" />
-
-        <RadioGroup
-            android:id="@+id/rgTargetingMode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-            <RadioButton
-                android:id="@+id/rbAuto"
+            <TextView
+                android:id="@+id/tvHeightDifferenceLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Auto (Coordinates)"
-                android:checked="true" />
-            <RadioButton
-                android:id="@+id/rbManual"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Manual (Dist/Bear)" />
-        </RadioGroup>
+                android:text="Height Difference (m): 0" />
 
-        <!-- Auto Targeting: Target Coordinates -->
-        <LinearLayout
-            android:id="@+id/layoutAutoTargeting"
-            android:orientation="vertical"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp">
-            <EditText
-                android:id="@+id/etTargetLat"
+            <SeekBar
+                android:id="@+id/seekBarHeightDiff"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Target Latitude"
-                android:inputType="numberSigned|numberDecimal" />
-            <EditText
-                android:id="@+id/etTargetLon"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Target Longitude"
-                android:inputType="numberSigned|numberDecimal" />
-        </LinearLayout>
+                android:min="-50"
+                android:max="50"
+                android:progress="0" />
 
-        <!-- Manual Targeting: Distance, Bearing, and Optional "Targeting From" Coordinates -->
-        <LinearLayout
-            android:id="@+id/layoutManualTargeting"
-            android:visibility="gone"
-            android:orientation="vertical"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp">
-            <EditText
-                android:id="@+id/etManualDistance"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Distance (m)"
-                android:inputType="numberDecimal" />
-            <EditText
-                android:id="@+id/etManualBearing"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Bearing (°)"
-                android:inputType="numberDecimal" />
-            <!-- Optional origin for targeting -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="(Optional) Targeting From Coordinates:"
-                android:paddingTop="8dp"/>
-            <EditText
-                android:id="@+id/etManualOriginLat"
+                android:text="Targeting Mode:"
+                android:paddingTop="16dp" />
+
+            <RadioGroup
+                android:id="@+id/rgTargetingMode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Origin Latitude (default: current location)"
-                android:inputType="numberSigned|numberDecimal" />
-            <EditText
-                android:id="@+id/etManualOriginLon"
+                android:orientation="horizontal">
+                <RadioButton
+                    android:id="@+id/rbAuto"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Auto (Coordinates)"
+                    android:checked="true" />
+                <RadioButton
+                    android:id="@+id/rbManual"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Manual (Dist/Bear)" />
+            </RadioGroup>
+
+            <LinearLayout
+                android:id="@+id/layoutAutoTargeting"
+                android:orientation="vertical"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Origin Longitude (default: current location)"
-                android:inputType="numberSigned|numberDecimal" />
+                android:paddingTop="8dp">
+                <EditText
+                    android:id="@+id/etTargetLat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Target Latitude"
+                    android:inputType="numberSigned|numberDecimal" />
+                <EditText
+                    android:id="@+id/etTargetLon"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Target Longitude"
+                    android:inputType="numberSigned|numberDecimal" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layoutManualTargeting"
+                android:visibility="gone"
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp">
+                <EditText
+                    android:id="@+id/etManualDistance"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Distance (m)"
+                    android:inputType="numberDecimal" />
+                <EditText
+                    android:id="@+id/etManualBearing"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Bearing (°)"
+                    android:inputType="numberDecimal" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="(Optional) Targeting From Coordinates:"
+                    android:paddingTop="8dp"/>
+                <EditText
+                    android:id="@+id/etManualOriginLat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Origin Latitude (default: current location)"
+                    android:inputType="numberSigned|numberDecimal" />
+                <EditText
+                    android:id="@+id/etManualOriginLon"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Origin Longitude (default: current location)"
+                    android:inputType="numberSigned|numberDecimal" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnOpenMap"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Select Target on Map" />
+
+            <Button
+                android:id="@+id/btnRefreshLocation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Refresh Location" />
+
+            <Button
+                android:id="@+id/btnMaxRange"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Calculate Maximum Range" />
+
+            <TextView
+                android:id="@+id/tvMaxRange"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Maximum Range: "
+                android:textSize="16sp"
+                android:paddingTop="8dp" />
+
+            <Button
+                android:id="@+id/btnSettings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Settings" />
+
+            <Button
+                android:id="@+id/btnCalculate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Calculate" />
+
+            <TextView
+                android:id="@+id/tvResult"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Firing Solution: "
+                android:textSize="16sp"
+                android:paddingTop="16dp" />
+
+            <Button
+                android:id="@+id/btnConfirmFire"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Confirm Fire"
+                android:visibility="gone"
+                android:layout_marginTop="16dp"/>
+
+            <Button
+                android:id="@+id/btnViewShots"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="View Fired Shots"
+                android:visibility="visible"
+                android:layout_marginTop="8dp"/>
         </LinearLayout>
-
-        <!-- Button to open map picker (for auto targeting) -->
-        <Button
-            android:id="@+id/btnOpenMap"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Select Target on Map" />
-
-        <!-- Refresh Location Button -->
-        <Button
-            android:id="@+id/btnRefreshLocation"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Refresh Location" />
-
-        <!-- Maximum Range Button -->
-        <Button
-            android:id="@+id/btnMaxRange"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Calculate Maximum Range" />
-
-        <!-- Maximum Range Display -->
-        <TextView
-            android:id="@+id/tvMaxRange"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Maximum Range: "
-            android:textSize="16sp"
-            android:paddingTop="8dp" />
-
-        <!-- Settings Button -->
-        <Button
-            android:id="@+id/btnSettings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Settings" />
-
-        <!-- Calculate Button -->
-        <Button
-            android:id="@+id/btnCalculate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Calculate" />
-
-        <!-- Results Display -->
-        <TextView
-            android:id="@+id/tvResult"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Firing Solution: "
-            android:textSize="16sp"
-            android:paddingTop="16dp" />
-
-        <!-- New Confirm Fire Button -->
-        <Button
-            android:id="@+id/btnConfirmFire"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Confirm Fire"
-            android:visibility="gone"
-            android:layout_marginTop="16dp"/>
-
-        <!-- New View Shots Button -->
-        <!-- New View Shots Button (always visible) -->
-        <Button
-            android:id="@+id/btnViewShots"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="View Fired Shots"
-            android:visibility="visible"
-            android:layout_marginTop="8dp"/>
-
-
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</LinearLayout>

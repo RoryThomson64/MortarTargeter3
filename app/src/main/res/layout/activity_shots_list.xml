@@ -1,22 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- List of shots -->
+    <!-- Header similar to Settings -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="#CCCCCC"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/tvTopTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Shots List"
+            android:textSize="20sp"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="8dp" />
+
+        <ImageButton
+            android:id="@+id/btnCloseShots"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentEnd="true"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Close Shots List" />
+    </RelativeLayout>
+
+    <!-- Main Content -->
     <ListView
         android:id="@+id/listViewShots"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
-    <!-- Close (X) button in top-right -->
-    <ImageButton
-        android:id="@+id/btnCloseShots"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="16dp"
-        android:background="@android:color/transparent"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:contentDescription="Close Shots List" />
-</FrameLayout>
+</LinearLayout>
