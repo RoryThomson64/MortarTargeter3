@@ -5,24 +5,27 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
 import android.util.Log
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.*
+import com.google.android.gms.maps.MapsInitializer
+import com.google.android.gms.maps.MapsInitializer.Renderer
+import com.google.android.gms.maps.OnMapsSdkInitializedCallback
+import com.google.android.gms.maps.model.LatLng
 import okhttp3.*
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import kotlin.math.*
-import com.google.android.gms.maps.MapsInitializer
-import com.google.android.gms.maps.OnMapsSdkInitializedCallback
-import com.google.android.gms.maps.MapsInitializer.Renderer
-import com.google.android.gms.maps.model.LatLng
 import java.io.IOException
+import kotlin.math.*
+import com.google.openlocationcode.OpenLocationCode
+
+
 
 // Top-level SimulationResult for unambiguous access.
 data class SimulationResult(
@@ -41,6 +44,14 @@ data class DragSettings(
     val airDensity: Double
 )
 
+// Data class for a fired shot.
+data class Shot(
+    val id: Long,
+    val impactLat: Double,
+    val impactLon: Double,
+    val timestamp: Long
+)
+
 class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
     // UI elements.
@@ -53,14 +64,17 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     private lateinit var seekBarHeightDiff: SeekBar
     private lateinit var rbAuto: RadioButton
     private lateinit var rbManual: RadioButton
+    private lateinit var rbPlusCode: RadioButton
     private lateinit var layoutAutoTargeting: LinearLayout
     private lateinit var layoutManualTargeting: LinearLayout
+    private lateinit var layoutPlusCodeTargeting: LinearLayout
     private lateinit var etTargetLat: EditText
     private lateinit var etTargetLon: EditText
     private lateinit var etManualDistance: EditText
     private lateinit var etManualBearing: EditText
     private lateinit var etManualOriginLat: EditText
     private lateinit var etManualOriginLon: EditText
+    private lateinit var etPlusCode: EditText
     private lateinit var btnCalculate: Button
     private lateinit var btnOpenMap: Button
     private lateinit var tvResult: TextView
@@ -68,11 +82,17 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     private lateinit var btnMaxRange: Button
     private lateinit var tvMaxRange: TextView
     private lateinit var btnSettings: Button
-    private lateinit var btnHelp: ImageButton  // New Help button
+    private lateinit var btnHelp: ImageButton
+    private lateinit var btnConfirmFire: Button
+    private lateinit var btnViewShots: Button
 
-    // Location client.
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+
+    // Location is stored as LatLng.
     private var currentLocation: LatLng? = null
+
+    // The most recent calculated shot.
+    private var lastShot: Shot? = null
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1000
@@ -84,7 +104,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
     // Helper: load drag settings from SharedPreferences.
     private fun loadDragSettings(): DragSettings {
-        val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("DragSettings", MODE_PRIVATE)
         val frontalCd = prefs.getFloat("frontal_cd", 0.3f).toDouble()
         val sideCd = prefs.getFloat("side_cd", 1.2f).toDouble()
         val frontalArea = prefs.getFloat("frontal_area", 0.01f).toDouble()
@@ -93,6 +113,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         return DragSettings(frontalCd, sideCd, frontalArea, sideArea, airDensity)
     }
 
+    // (Optional) Get API key method remains here for other purposes.
     fun getApiKey(context: Context): String {
         return try {
             val inputStream = context.assets.open("apikey.txt")
@@ -108,7 +129,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Initialize Google Maps.
         MapsInitializer.initialize(this, Renderer.LATEST, this)
 
         // Bind UI elements.
@@ -121,14 +141,17 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         seekBarHeightDiff = findViewById(R.id.seekBarHeightDiff)
         rbAuto = findViewById(R.id.rbAuto)
         rbManual = findViewById(R.id.rbManual)
+        rbPlusCode = findViewById(R.id.rbPlusCode)
         layoutAutoTargeting = findViewById(R.id.layoutAutoTargeting)
         layoutManualTargeting = findViewById(R.id.layoutManualTargeting)
+        layoutPlusCodeTargeting = findViewById(R.id.layoutPlusCodeTargeting)
         etTargetLat = findViewById(R.id.etTargetLat)
         etTargetLon = findViewById(R.id.etTargetLon)
         etManualDistance = findViewById(R.id.etManualDistance)
         etManualBearing = findViewById(R.id.etManualBearing)
         etManualOriginLat = findViewById(R.id.etManualOriginLat)
         etManualOriginLon = findViewById(R.id.etManualOriginLon)
+        etPlusCode = findViewById(R.id.etPlusCode)
         btnCalculate = findViewById(R.id.btnCalculate)
         btnOpenMap = findViewById(R.id.btnOpenMap)
         tvResult = findViewById(R.id.tvResult)
@@ -137,7 +160,31 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         btnMaxRange = findViewById(R.id.btnMaxRange)
         tvMaxRange = findViewById(R.id.tvMaxRange)
         btnSettings = findViewById(R.id.btnSettings)
-        btnHelp = findViewById(R.id.btnHelp) // Bind the Help button
+        btnHelp = findViewById(R.id.btnHelp)
+        btnConfirmFire = findViewById(R.id.btnConfirmFire)
+        btnViewShots = findViewById(R.id.btnViewShots)
+
+        // Set up the radio group listener to toggle targeting layouts.
+        val rgTargetingMode = findViewById<RadioGroup>(R.id.rgTargetingMode)
+        rgTargetingMode.setOnCheckedChangeListener { _, checkedId ->
+            when (checkedId) {
+                R.id.rbAuto -> {
+                    layoutAutoTargeting.visibility = View.VISIBLE
+                    layoutManualTargeting.visibility = View.GONE
+                    layoutPlusCodeTargeting.visibility = View.GONE
+                }
+                R.id.rbManual -> {
+                    layoutAutoTargeting.visibility = View.GONE
+                    layoutManualTargeting.visibility = View.VISIBLE
+                    layoutPlusCodeTargeting.visibility = View.GONE
+                }
+                R.id.rbPlusCode -> {
+                    layoutAutoTargeting.visibility = View.GONE
+                    layoutManualTargeting.visibility = View.GONE
+                    layoutPlusCodeTargeting.visibility = View.VISIBLE
+                }
+            }
+        }
 
         // Set Help button listener.
         btnHelp.setOnClickListener {
@@ -147,27 +194,21 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         requestLocationPermission()
 
+        // SeekBar listener (maps progress to height difference)
         seekBarHeightDiff.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val heightDiff = progress - 50
-                tvHeightDifferenceLabel.text = "Height Difference (m): $heightDiff"
+                // Here progress (0-100) is used directly; adjust as needed.
+                tvHeightDifferenceLabel.text = "Height Difference (m): $progress"
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) { }
             override fun onStopTrackingTouch(seekBar: SeekBar?) { }
         })
 
-        val rgTargetingMode = findViewById<RadioGroup>(R.id.rgTargetingMode)
-        rgTargetingMode.setOnCheckedChangeListener { _, checkedId ->
-            if (checkedId == R.id.rbAuto) {
-                layoutAutoTargeting.visibility = LinearLayout.VISIBLE
-                layoutManualTargeting.visibility = LinearLayout.GONE
-            } else {
-                layoutAutoTargeting.visibility = LinearLayout.GONE
-                layoutManualTargeting.visibility = LinearLayout.VISIBLE
-            }
+        btnCalculate.setOnClickListener {
+            calculateFiringSolution()
+            btnConfirmFire.visibility = View.VISIBLE
         }
 
-        btnCalculate.setOnClickListener { calculateFiringSolution() }
         btnOpenMap.setOnClickListener {
             val intent = Intent(this, MapPickerActivity::class.java)
             currentLocation?.let { location ->
@@ -191,6 +232,35 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
         btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        btnConfirmFire.setOnClickListener {
+            if (rbAuto.isChecked) {
+                val targetLat = etTargetLat.text.toString().toDoubleOrNull()
+                val targetLon = etTargetLon.text.toString().toDoubleOrNull()
+                if (targetLat == null || targetLon == null) {
+                    Toast.makeText(this, "Target coordinates missing.", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                lastShot = Shot(
+                    id = System.currentTimeMillis(),
+                    impactLat = targetLat,
+                    impactLon = targetLon,
+                    timestamp = System.currentTimeMillis()
+                )
+            } else {
+                if (lastShot == null) {
+                    Toast.makeText(this, "No firing solution available.", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+            }
+            ShotsManager.addShot(this, lastShot!!)
+            Toast.makeText(this, "Shot confirmed and saved.", Toast.LENGTH_SHORT).show()
+            btnConfirmFire.visibility = View.GONE
+        }
+
+        btnViewShots.setOnClickListener {
+            startActivity(Intent(this, ShotsListActivity::class.java))
         }
     }
 
@@ -227,103 +297,18 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         return bestRange
     }
 
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == MAP_PICK_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
-            val updateType = data.getStringExtra("update_type")
-            if (updateType == "mortar") {
-                // Update mortar location in MainActivity.
-                val newLat = data.getDoubleExtra("mortar_lat", 0.0)
-                val newLon = data.getDoubleExtra("mortar_lon", 0.0)
-                currentLocation = LatLng(newLat, newLon)
-                tvCurrentLocation.text = "Current Location: $newLat, $newLon"
-            } else if (updateType == "target") {
-                // Update target coordinates.
-                val targetLat = data.getDoubleExtra("selected_lat", 0.0)
-                val targetLon = data.getDoubleExtra("selected_lon", 0.0)
-                etTargetLat.setText(targetLat.toString())
-                etTargetLon.setText(targetLon.toString())
-            }
+    // --- Plus Code Decoding ---
+    // Decodes a Plus Code string into latitude/longitude coordinates.
+    private fun decodePlusCode(plusCode: String): Pair<Double, Double>? {
+        return try {
+            val codeArea = OpenLocationCode.decode(plusCode)
+            Pair(codeArea.centerLatitude, codeArea.centerLongitude)
+        } catch (e: Exception) {
+            null
         }
     }
 
 
-    private fun requestLocationPermission() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED ||
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                LOCATION_PERMISSION_REQUEST_CODE
-            )
-        } else {
-            getLastLocation()
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE &&
-            grantResults.isNotEmpty() &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            getLastLocation()
-        } else {
-            Toast.makeText(this, "Location permission required!", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun getLastLocation() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            == PackageManager.PERMISSION_GRANTED ||
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-            == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                if (location != null) {
-                    currentLocation = LatLng(location.latitude, location.longitude)
-                    tvCurrentLocation.text = "Current Location: ${location.latitude}, ${location.longitude}"
-                    fetchWindData(location.latitude, location.longitude)
-                } else {
-                    tvCurrentLocation.text = "Current Location: Unknown"
-                }
-            }
-
-        }
-    }
-
-    private fun fetchWindData(lat: Double, lon: Double) {
-        val url = "https://wttr.in/$lat,$lon?format=j1"
-        val request = Request.Builder().url(url).build()
-        val client = OkHttpClient()
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity, "Failed to fetch weather data", Toast.LENGTH_SHORT).show()
-                }
-            }
-            override fun onResponse(call: Call, response: Response) {
-                response.body?.string()?.let { jsonString ->
-                    try {
-                        val jsonObject = JSONObject(jsonString)
-                        val currentCondition = jsonObject.getJSONArray("current_condition").getJSONObject(0)
-                        val windSpeedKmph = currentCondition.getString("windspeedKmph").toDouble()
-                        val windSpeed = windSpeedKmph / 3.6
-                        val windDirDegree = currentCondition.getString("winddirDegree").toDouble()
-                        runOnUiThread {
-                            etWindSpeed.setText(windSpeed.toString())
-                            etWindDirection.setText(windDirDegree.toString())
-                        }
-                    } catch (e: Exception) {
-                        runOnUiThread {
-                            Toast.makeText(this@MainActivity, "Error parsing weather data", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-        })
-    }
 
     // --- Firing Solution Solver ---
     private fun calculateFiringSolution() {
@@ -337,122 +322,96 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val shellWeightGrams = etShellWeight.text.toString().toDoubleOrNull() ?: 0.0
         val shellWeight = shellWeightGrams / 1000.0
         val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull() ?: 0.0
+        // Map seekBar progress (assumed 0-100) to a height difference value.
         val heightDiff = (seekBarHeightDiff.progress - 50).toDouble()
 
-        var distance: Double
-        var bearing: Double
-        if (rbAuto.isChecked) {
-            val targetLat = etTargetLat.text.toString().toDoubleOrNull() ?: run {
-                Toast.makeText(this, "Enter target latitude", Toast.LENGTH_SHORT).show()
-                return
-            }
-            val targetLon = etTargetLon.text.toString().toDoubleOrNull() ?: run {
-                Toast.makeText(this, "Enter target longitude", Toast.LENGTH_SHORT).show()
-                return
-            }
-            distance = calculateDistance(currentLocation!!.latitude, currentLocation!!.longitude, targetLat, targetLon)
-            bearing = calculateBearing(currentLocation!!.latitude, currentLocation!!.longitude, targetLat, targetLon)
-        } else {
-            distance = etManualDistance.text.toString().toDoubleOrNull() ?: run {
-                Toast.makeText(this, "Enter distance", Toast.LENGTH_SHORT).show()
-                return
-            }
-            bearing = etManualBearing.text.toString().toDoubleOrNull() ?: run {
-                Toast.makeText(this, "Enter bearing", Toast.LENGTH_SHORT).show()
-                return
-            }
-            bearing = (bearing % 360 + 360) % 360
-        }
-
-        val windDirRad = Math.toRadians(windDirection)
-        val wind_vx = windSpeed * sin(windDirRad)
-        val wind_vy = windSpeed * cos(windDirRad)
-
-        val toleranceRange = 0.5  // meters.
-        val toleranceBearing = 0.5 // degrees.
-        val maxBisectionIterations = 20
-        val maxOuterIterations = 15
-
-        var currentLaunchBearing = bearing
-
-        fun findElevationForRange(launchBearing: Double): Double {
-            val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
-            if (ratio > 1) {
-                Toast.makeText(this, "Target out of range", Toast.LENGTH_SHORT).show()
-                return Double.NaN
-            }
-            val lowAngle = 0.5 * asin(ratio)
-            val dragFreeHighAngle = (Math.PI / 2) - lowAngle + atan2(heightDiff, distance)
-            val initialGuess = dragFreeHighAngle.coerceIn(0.7, Math.PI / 2 - 0.01)
-            var low = (initialGuess - 0.2).coerceAtLeast(0.7)
-            var high = (initialGuess + 0.2).coerceAtMost(Math.PI / 2 - 0.01)
-            var mid = (low + high) / 2.0
-
-            for (i in 0 until maxBisectionIterations) {
-                val simResult = simulateProjectile(
-                    muzzleVelocity,
-                    mid,
-                    launchBearing,
-                    wind_vx,
-                    wind_vy,
-                    shellWeight,
-                    settings.frontalCd,
-                    settings.sideCd,
-                    settings.frontalArea,
-                    settings.sideArea,
-                    settings.airDensity,
-                    heightDiff
-                )
-                if (heightDiff >= 0 && simResult.maxZ < heightDiff) {
-                    low = mid
-                    mid = (low + high) / 2.0
-                    continue
+        when {
+            rbPlusCode.isChecked -> {
+                // Use Plus Code input.
+                val plusCodeInput = etPlusCode.text.toString().trim()
+                if (plusCodeInput.isEmpty()) {
+                    Toast.makeText(this, "Enter a Plus Code", Toast.LENGTH_SHORT).show()
+                    return
                 }
-                val simRange = sqrt(simResult.impactX * simResult.impactX + simResult.impactY * simResult.impactY)
-                val diff = simRange - distance
-                if (abs(diff) < toleranceRange) return mid
-                if (simRange > distance) low = mid else high = mid
-                mid = (low + high) / 2.0
+                val coordinates = decodePlusCode(plusCodeInput)
+                if (coordinates == null) {
+                    Toast.makeText(this, "Invalid Plus Code", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                proceedWithFiringSolution(coordinates.first, coordinates.second, settings, windSpeed, windDirection, shellWeight, muzzleVelocity, heightDiff)
             }
-            return mid
+            rbAuto.isChecked -> {
+                val targetLat = etTargetLat.text.toString().toDoubleOrNull() ?: run {
+                    Toast.makeText(this, "Enter target latitude", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val targetLon = etTargetLon.text.toString().toDoubleOrNull() ?: run {
+                    Toast.makeText(this, "Enter target longitude", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                proceedWithFiringSolution(targetLat, targetLon, settings, windSpeed, windDirection, shellWeight, muzzleVelocity, heightDiff)
+            }
+            else -> { // Manual mode.
+                val distance = etManualDistance.text.toString().toDoubleOrNull() ?: run {
+                    Toast.makeText(this, "Enter distance", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val bearing = etManualBearing.text.toString().toDoubleOrNull() ?: run {
+                    Toast.makeText(this, "Enter bearing", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val computedCoordinates = computeImpactCoordinates(currentLocation!!.latitude, currentLocation!!.longitude, distance, bearing)
+                proceedWithFiringSolution(computedCoordinates.first, computedCoordinates.second, settings, windSpeed, windDirection, shellWeight, muzzleVelocity, heightDiff)
+            }
         }
+    }
 
-        var currentElevation = findElevationForRange(currentLaunchBearing)
-        for (i in 0 until maxOuterIterations) {
-            val simResult = simulateProjectile(
-                muzzleVelocity,
-                currentElevation,
-                currentLaunchBearing,
-                wind_vx,
-                wind_vy,
-                shellWeight,
-                settings.frontalCd,
-                settings.sideCd,
-                settings.frontalArea,
-                settings.sideArea,
-                settings.airDensity,
-                heightDiff
-            )
-            val simX = simResult.impactX
-            val simY = simResult.impactY
-            val bearingRad = Math.toRadians(bearing)
-            val targetX = distance * sin(bearingRad)
-            val targetY = distance * cos(bearingRad)
-            val errorX = targetX - simX
-            val errorY = targetY - simY
-            val errorCross = errorX * cos(bearingRad) - errorY * sin(bearingRad)
-            val deltaBearingRad = atan2(errorCross, distance)
-            val deltaBearingDeg = Math.toDegrees(deltaBearingRad)
-            currentLaunchBearing += deltaBearingDeg
-            currentLaunchBearing = (currentLaunchBearing % 360 + 360) % 360
-            currentElevation = findElevationForRange(currentLaunchBearing)
-            if (abs(deltaBearingDeg) < toleranceBearing) break
-        }
+    private fun proceedWithFiringSolution(
+        targetLat: Double,
+        targetLon: Double,
+        settings: DragSettings,
+        windSpeed: Double,
+        windDirection: Double,
+        shellWeight: Double,
+        muzzleVelocity: Double,
+        heightDiff: Double
+    ) {
+        // Calculate distance and target bearing from current location.
+        val distance = calculateDistance(
+            currentLocation!!.latitude,
+            currentLocation!!.longitude,
+            targetLat,
+            targetLon
+        )
+        val targetBearing = calculateBearing(
+            currentLocation!!.latitude,
+            currentLocation!!.longitude,
+            targetLat,
+            targetLon
+        )
 
+        // Convert wind direction (from which the wind is blowing) into a wind vector.
+        val windDirRad = Math.toRadians(windDirection)
+        val wind_vx = -windSpeed * sin(windDirRad)
+        val wind_vy = -windSpeed * cos(windDirRad)
+
+        // Use the full 2D iterative solver for a high-angle lob solution.
+        val (finalElevation, finalBearing) = solveFiringSolutionHighAngle(
+            distance,
+            targetBearing,
+            muzzleVelocity,
+            wind_vx,
+            wind_vy,
+            shellWeight,
+            settings,
+            heightDiff
+        )
+
+        // Run one final simulation using the computed solution.
         val finalSim = simulateProjectile(
             muzzleVelocity,
-            currentElevation,
-            currentLaunchBearing,
+            finalElevation,
+            finalBearing,
             wind_vx,
             wind_vy,
             shellWeight,
@@ -470,30 +429,45 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val impactBearingRad = atan2(impactX, impactY)
         val impactBearing = (Math.toDegrees(impactBearingRad) + 360) % 360
 
+        // Compute impact coordinates from the current location.
         val impactCoordinates = computeImpactCoordinates(
             currentLocation!!.latitude,
             currentLocation!!.longitude,
             impactDistance,
             impactBearing
         )
-        val finalElevationDeg = Math.toDegrees(currentElevation)
-        val ratio2 = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
-        if (ratio2 > 1.0) {
+
+        // For reference, compute a drag-free high-angle solution.
+        val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
+        if (ratio > 1.0) {
             Toast.makeText(this, "Target out of range", Toast.LENGTH_SHORT).show()
             return
         }
-        val lowAngle = 0.5 * asin(ratio2)
+        val lowAngle = 0.5 * asin(ratio)
         val dragFreeHighAngle = (Math.PI / 2) - lowAngle + atan2(heightDiff, distance)
         val baseElevationDeg = Math.toDegrees(dragFreeHighAngle)
+        val finalElevationDeg = Math.toDegrees(finalElevation)
 
-        Log.d(TAG, "Final simulation: maxZ=${finalSim.maxZ}, targetHeight=$heightDiff")
+        // Save the computed shot.
+        lastShot = Shot(
+            id = System.currentTimeMillis(),
+            impactLat = if (rbAuto.isChecked || rbPlusCode.isChecked)
+                etTargetLat.text.toString().toDoubleOrNull() ?: impactCoordinates.first
+            else
+                impactCoordinates.first,
+            impactLon = if (rbAuto.isChecked || rbPlusCode.isChecked)
+                etTargetLon.text.toString().toDoubleOrNull() ?: impactCoordinates.second
+            else
+                impactCoordinates.second,
+            timestamp = System.currentTimeMillis()
+        )
 
         tvResult.text = "Firing Solution with Drag & Side Drag:\n\n" +
                 "Target Distance: ${"%.1f".format(distance)} m\n" +
-                "Target Bearing: ${"%.1f".format(bearing)}°\n\n" +
+                "Target Bearing: ${"%.1f".format(targetBearing)}°\n\n" +
                 "Set Mortar to:\n" +
                 "   Elevation: ${"%.1f".format(finalElevationDeg)}°\n" +
-                "   Bearing:   ${"%.1f".format(currentLaunchBearing)}°\n\n" +
+                "   Bearing:   ${"%.1f".format(finalBearing)}°\n\n" +
                 "Additional Details:\n" +
                 "   Drag-Free Elevation (High-Angle Lob): ${"%.1f".format(baseElevationDeg)}°\n" +
                 "   Time to Impact: ${"%.2f".format(flightTime)} s\n" +
@@ -504,6 +478,175 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                 "   Wind: ${"%.2f".format(windSpeed)} m/s @ ${"%.1f".format(windDirection)}°"
     }
 
+    /**
+     * Two-dimensional iterative solver for a high-angle lob solution.
+     * Adjusts both the elevation and bearing until the simulated impact point converges to the target.
+     *
+     * @return Pair(elevation in radians, bearing in degrees)
+     */
+    private fun solveFiringSolutionHighAngle(
+        distance: Double,
+        targetBearing: Double,
+        muzzleVelocity: Double,
+        wind_vx: Double,
+        wind_vy: Double,
+        shellWeight: Double,
+        settings: DragSettings,
+        heightDiff: Double
+    ): Pair<Double, Double> {
+        // Compute the no-drag solution ratio.
+        val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
+        // For a high-angle lob, we use the complementary solution and add height adjustment.
+        var elevation = if (ratio <= 1)
+            (Math.PI / 2) - 0.5 * asin(ratio) + atan2(heightDiff, distance)
+        else
+            (Math.PI / 2) - 0.1
+
+        // Constrain the initial guess within 40° to 90°.
+        val minAngle = Math.toRadians(40.0)
+        val maxAngle = Math.toRadians(90.0)
+        elevation = elevation.coerceIn(minAngle, maxAngle)
+        var bearing = targetBearing
+
+        // Tolerance and iteration parameters.
+        val tolerance = 0.1  // meters acceptable error in impact position.
+        val maxIterations = 100
+        val kElev = 0.03   // Gain for elevation correction.
+        val kBearing = 0.1 // Gain for bearing correction.
+
+        // Convert target bearing into local X-Y coordinates.
+        val targetBearingRad = Math.toRadians(targetBearing)
+        val targetX = distance * sin(targetBearingRad)
+        val targetY = distance * cos(targetBearingRad)
+
+        for (i in 0 until maxIterations) {
+            // Simulate the projectile trajectory for the current guess.
+            val simResult = simulateProjectile(
+                muzzleVelocity,
+                elevation,
+                bearing,
+                wind_vx,
+                wind_vy,
+                shellWeight,
+                settings.frontalCd,
+                settings.sideCd,
+                settings.frontalArea,
+                settings.sideArea,
+                settings.airDensity,
+                heightDiff
+            )
+            val simX = simResult.impactX
+            val simY = simResult.impactY
+
+            // Compute error between the simulated impact and the target.
+            val errorX = targetX - simX
+            val errorY = targetY - simY
+            val errorDistance = sqrt(errorX * errorX + errorY * errorY)
+
+            if (errorDistance < tolerance) break
+
+            // Calculate the simulated range.
+            val simRange = sqrt(simX * simX + simY * simY)
+            // Compute a range error.
+            val rangeError = simRange - distance
+            // Use an adaptive gain: the larger the error, the more you adjust.
+            // For example, multiply by (1 + abs(rangeError)/distance)
+            val adaptiveFactor = 1.0 + abs(rangeError) / distance
+            // Increase the elevation gain if overshooting (rangeError positive).
+            val dElev = kElev * rangeError * adaptiveFactor / distance
+            elevation += dElev
+            // Clamp the elevation.
+            elevation = elevation.coerceIn(minAngle, maxAngle)
+
+            // Update bearing as before.
+            val desiredBearing = (Math.toDegrees(atan2(errorX, errorY)) + 360) % 360
+            val dBearing = kBearing * (((desiredBearing - bearing + 540) % 360) - 180)
+            bearing = (bearing + dBearing + 360) % 360
+        }
+        return Pair(elevation, bearing)
+    }
+
+
+
+    /**
+     * Two-dimensional iterative solver that adjusts both the elevation and bearing
+     * until the simulated impact point converges to the target.
+     *
+     * @return Pair(elevation in radians, bearing in degrees)
+     */
+    private fun solveFiringSolution(
+        distance: Double,
+        targetBearing: Double,
+        muzzleVelocity: Double,
+        wind_vx: Double,
+        wind_vy: Double,
+        shellWeight: Double,
+        settings: DragSettings,
+        heightDiff: Double
+    ): Pair<Double, Double> {
+        // Initial guess from the no-drag ballistic solution (choose lower-angle solution).
+        val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
+        var elevation = if (ratio <= 1) 0.5 * asin(ratio) else 0.1
+        var bearing = targetBearing
+
+        // Tolerance and iteration parameters.
+        val tolerance = 0.5  // meters (acceptable error in impact position).
+        val maxIterations = 50
+        val kElev = 0.05   // Gain for elevation correction.
+        val kBearing = 0.1 // Gain for bearing correction.
+
+        // Define a minimum elevation (in radians) to avoid negative launch angles.
+        val minElevation = 0.1  // ~5.7 degrees
+
+        // Convert target bearing into local X-Y coordinates.
+        val targetBearingRad = Math.toRadians(targetBearing)
+        val targetX = distance * sin(targetBearingRad)
+        val targetY = distance * cos(targetBearingRad)
+
+        for (i in 0 until maxIterations) {
+            // Simulate the projectile trajectory for the current guess.
+            val simResult = simulateProjectile(
+                muzzleVelocity,
+                elevation,
+                bearing,
+                wind_vx,
+                wind_vy,
+                shellWeight,
+                settings.frontalCd,
+                settings.sideCd,
+                settings.frontalArea,
+                settings.sideArea,
+                settings.airDensity,
+                heightDiff
+            )
+            val simX = simResult.impactX
+            val simY = simResult.impactY
+
+            // Compute error between the simulated impact and the target position.
+            val errorX = targetX - simX
+            val errorY = targetY - simY
+            val errorDistance = sqrt(errorX * errorX + errorY * errorY)
+
+            if (errorDistance < tolerance) break
+
+            // Update elevation based on range error.
+            val simRange = sqrt(simX * simX + simY * simY)
+            val dElev = kElev * (distance - simRange) / distance
+            elevation += dElev
+            // Enforce a lower bound to avoid negative elevation.
+            elevation = max(elevation, minElevation)
+
+            // Update bearing based on lateral error.
+            // Determine the desired bearing from the error vector.
+            val desiredBearing = (Math.toDegrees(atan2(errorX, errorY)) + 360) % 360
+            // Compute a small bearing correction (handling wrap-around properly).
+            val dBearing = kBearing * (((desiredBearing - bearing + 540) % 360) - 180)
+            bearing = (bearing + dBearing + 360) % 360
+        }
+        return Pair(elevation, bearing)
+    }
+
+
     // --- Simulation using RK4 Integration & Drag Settings ---
     private fun simulateProjectile(
         muzzleVelocity: Double,
@@ -513,13 +656,14 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         wind_vy: Double,
         mass: Double,
         frontalCd: Double,
-        sideCd: Double,
+        sideCd: Double,      // (Unused in this revised model)
         frontalArea: Double,
-        sideArea: Double,
+        sideArea: Double,    // (Unused in this revised model)
         rho: Double,
         targetHeight: Double
     ): SimulationResult {
         val launchBearingRad = Math.toRadians(launchBearing)
+        // Initial velocity components.
         val initialVx = muzzleVelocity * cos(elevation) * sin(launchBearingRad)
         val initialVy = muzzleVelocity * cos(elevation) * cos(launchBearingRad)
         val initialVz = muzzleVelocity * sin(elevation)
@@ -531,52 +675,30 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         var prevState = state.copyOf()
         var prevT = t
 
-        // Compute fixed launch axis.
-        val axisX = cos(elevation) * sin(launchBearingRad)
-        val axisY = cos(elevation) * cos(launchBearingRad)
-        val axisZ = sin(elevation)
-        val axisMag = sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ)
-        val axis = Triple(axisX / axisMag, axisY / axisMag, axisZ / axisMag)
+        // Adjust target altitude slightly if >= 0 to ensure proper detection on descent.
+        val effectiveTarget = if (targetHeight >= 0) targetHeight - 0.001 else targetHeight
 
-        // Local function: compute derivatives of the state.
         fun derivatives(s: DoubleArray): DoubleArray {
             val vx = s[3]
             val vy = s[4]
             val vz = s[5]
-            // Relative velocity (ignoring vertical wind)
+            // Compute the relative velocity (projectile velocity minus wind).
             val relVx = vx - wind_vx
             val relVy = vy - wind_vy
             val relVz = vz
-            val vRelMag = sqrt(relVx * relVx + relVy * relVy + relVz * relVz)
-            // Decompose into components along the fixed axis and perpendicular.
-            val vParallel = relVx * axis.first + relVy * axis.second + relVz * axis.third
-            val parallelVx = vParallel * axis.first
-            val parallelVy = vParallel * axis.second
-            val parallelVz = vParallel * axis.third
-            val perpVx = relVx - parallelVx
-            val perpVy = relVy - parallelVy
-            val perpVz = relVz - parallelVz
-            val vPerpMag = sqrt(perpVx * perpVx + perpVy * perpVy + perpVz * perpVz)
-            // Compute drag forces.
-            val FdParallelMag = 0.5 * rho * (vParallel * vParallel) * frontalCd * frontalArea
-            val FdParallelX = -FdParallelMag * sign(vParallel) * axis.first
-            val FdParallelY = -FdParallelMag * sign(vParallel) * axis.second
-            val FdParallelZ = -FdParallelMag * sign(vParallel) * axis.third
-            val FdSideMag = if (vPerpMag > 0) 0.5 * rho * (vPerpMag * vPerpMag) * sideCd * sideArea else 0.0
-            val FdSideX = if (vPerpMag > 0) -FdSideMag * (perpVx / vPerpMag) else 0.0
-            val FdSideY = if (vPerpMag > 0) -FdSideMag * (perpVy / vPerpMag) else 0.0
-            val FdSideZ = if (vPerpMag > 0) -FdSideMag * (perpVz / vPerpMag) else 0.0
-            val FdX = FdParallelX + FdSideX
-            val FdY = FdParallelY + FdSideY
-            val FdZ = FdParallelZ + FdSideZ
-            // Accelerations (adding gravity in -z).
-            val ax = FdX / mass
-            val ay = FdY / mass
-            val az = FdZ / mass - 9.81
+            val speed = sqrt(relVx * relVx + relVy * relVy + relVz * relVz)
+            // Drag magnitude using the frontal drag coefficient and area.
+            val dragMagnitude = 0.5 * rho * speed * speed * frontalCd * frontalArea
+            // Apply drag opposite to the relative velocity direction.
+            val dragX = if (speed != 0.0) -dragMagnitude * (relVx / speed) else 0.0
+            val dragY = if (speed != 0.0) -dragMagnitude * (relVy / speed) else 0.0
+            val dragZ = if (speed != 0.0) -dragMagnitude * (relVz / speed) else 0.0
+            val ax = dragX / mass
+            val ay = dragY / mass
+            val az = dragZ / mass - 9.81
             return doubleArrayOf(vx, vy, vz, ax, ay, az)
         }
 
-        // Local function: RK4 integration step.
         fun rk4Step(s: DoubleArray, dt: Double): DoubleArray {
             val k1 = derivatives(s)
             val s2 = DoubleArray(6) { i -> s[i] + 0.5 * dt * k1[i] }
@@ -592,11 +714,10 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             if (state[2] > maxZ) maxZ = state[2]
             if (state[5] < 0) reachedApex = true
 
-            if (targetHeight < 0) {
-                // For targets below launch altitude, detect crossing immediately.
-                if ((prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
-                    val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
-                        (prevState[2] - targetHeight) / (prevState[2] - state[2])
+            if (effectiveTarget < 0) {
+                if ((prevState[2] - effectiveTarget) * (state[2] - effectiveTarget) <= 0.0) {
+                    val fraction = if (abs(prevState[2] - effectiveTarget) > 1e-6)
+                        (prevState[2] - effectiveTarget) / (prevState[2] - state[2])
                     else 1.0
                     val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
                     val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
@@ -604,10 +725,9 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                     return SimulationResult(impactX, impactY, impactT, maxZ)
                 }
             } else {
-                // For targets at or above launch altitude, wait until after apex and descent.
-                if (reachedApex && state[5] < 0 && (prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
-                    val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
-                        (prevState[2] - targetHeight) / (prevState[2] - state[2])
+                if (reachedApex && state[5] < 0 && (prevState[2] - effectiveTarget) * (state[2] - effectiveTarget) <= 0.0) {
+                    val fraction = if (abs(prevState[2] - effectiveTarget) > 1e-6)
+                        (prevState[2] - effectiveTarget) / (prevState[2] - state[2])
                     else 1.0
                     val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
                     val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
@@ -666,5 +786,80 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             Renderer.LATEST -> println("Using latest Google Maps renderer")
             Renderer.LEGACY -> println("Using legacy Google Maps renderer")
         }
+    }
+
+    private fun requestLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        } else {
+            getLastLocation()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE &&
+            grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            getLastLocation()
+        } else {
+            Toast.makeText(this, "Location permission required!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun getLastLocation() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED) {
+            LocationServices.getFusedLocationProviderClient(this).lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    currentLocation = LatLng(location.latitude, location.longitude)
+                    tvCurrentLocation.text = "Current Location: ${location.latitude}, ${location.longitude}"
+                    fetchWindData(location.latitude, location.longitude)
+                } else {
+                    tvCurrentLocation.text = "Current Location: Unknown"
+                }
+            }
+        }
+    }
+
+    private fun fetchWindData(lat: Double, lon: Double) {
+        val url = "https://wttr.in/$lat,$lon?format=j1"
+        val request = Request.Builder().url(url).build()
+        val client = OkHttpClient()
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "Failed to fetch weather data", Toast.LENGTH_SHORT).show()
+                }
+            }
+            override fun onResponse(call: Call, response: Response) {
+                response.body?.string()?.let { jsonString ->
+                    try {
+                        val jsonObject = JSONObject(jsonString)
+                        val currentCondition = jsonObject.getJSONArray("current_condition").getJSONObject(0)
+                        val windSpeedKmph = currentCondition.getString("windspeedKmph").toDouble()
+                        val windSpeed = windSpeedKmph / 3.6
+                        val windDirDegree = currentCondition.getString("winddirDegree").toDouble()
+                        runOnUiThread {
+                            etWindSpeed.setText(windSpeed.toString())
+                            etWindDirection.setText(windDirDegree.toString())
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, "Error parsing weather data", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        })
     }
 }

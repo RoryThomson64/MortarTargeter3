@@ -15,32 +15,26 @@
             android:id="@+id/tvTopTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Help"
+            android:text="Shots List"
             android:textSize="20sp"
             android:layout_centerVertical="true"
             android:layout_marginStart="8dp" />
 
         <ImageButton
-            android:id="@+id/btnCloseHelp"
+            android:id="@+id/btnCloseShots"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_alignParentEnd="true"
             android:background="@android:color/transparent"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:contentDescription="Close Help" />
+            android:contentDescription="Close Shots List" />
     </RelativeLayout>
 
     <!-- Main Content -->
-    <ScrollView
-        android:id="@+id/scrollViewHelp"
+    <ListView
+        android:id="@+id/listViewShots"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="16dp">
-        <TextView
-            android:id="@+id/tvHelpContent"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="16sp"/>
-    </ScrollView>
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
 </LinearLayout>

@@ -40,6 +40,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.openlocationcode:openlocationcode:1.0.4")
     implementation("com.google.android.gms:play-services-maps:18.1.0")
     implementation("com.squareup.okhttp3:okhttp:4.9.1")
     implementation(libs.androidx.core.ktx)
@@ -63,3 +64,4 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
+

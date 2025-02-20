@@ -1,83 +1,153 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <LinearLayout
+    <!-- Main content in a ScrollView, with top margin for the top bar -->
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:padding="16dp"
-        android:orientation="vertical">
+        android:layout_marginTop="60dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Display local time (optional, also shown in top bar) -->
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Drag Settings"
+                android:textSize="20sp"
+                android:paddingBottom="16dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Frontal Drag Coefficient:" />
+            <EditText
+                android:id="@+id/etFrontalCd"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Side Drag Coefficient:" />
+            <EditText
+                android:id="@+id/etSideCd"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Frontal Area (m²):" />
+            <EditText
+                android:id="@+id/etFrontalArea"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Side Area (m²):" />
+            <EditText
+                android:id="@+id/etSideArea"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Air Density (kg/m³):" />
+            <EditText
+                android:id="@+id/etAirDensity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal" />
+
+            <!-- Buttons to save active settings and reset to defaults -->
+            <Button
+                android:id="@+id/btnSaveSettings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save Active Settings"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/btnResetDefaults"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Reset to Default"
+                android:layout_marginTop="8dp" />
+
+            <!-- Preset section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Preset Name:"
+                android:layout_marginTop="16dp"/>
+            <EditText
+                android:id="@+id/etPresetName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Enter preset name" />
+
+            <Button
+                android:id="@+id/btnSavePreset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save Preset"
+                android:layout_marginTop="8dp" />
+
+            <Button
+                android:id="@+id/btnLoadPreset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Load Preset (Select from list)"
+                android:layout_marginTop="8dp" />
+
+            <Button
+                android:id="@+id/btnDeletePreset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Delete Preset (Select from list)"
+                android:layout_marginTop="8dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Top bar with local time and X (close) button -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="#CCCCCC"
+        android:padding="8dp">
 
         <TextView
+            android:id="@+id/tvTopTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Drag Settings"
+            android:text="Settings"
             android:textSize="20sp"
-            android:paddingBottom="16dp"/>
+            android:layout_centerVertical="true"
+            android:layout_marginStart="8dp" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Frontal Drag Coefficient:"/>
-        <EditText
-            android:id="@+id/etFrontalCd"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Side Drag Coefficient:"/>
-        <EditText
-            android:id="@+id/etSideCd"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Frontal Area (m²):" />
-        <EditText
-            android:id="@+id/etFrontalArea"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Side Area (m²):" />
-        <EditText
-            android:id="@+id/etSideArea"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Air Density (kg/m³):" />
-        <EditText
-            android:id="@+id/etAirDensity"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal" />
-
-        <Button
-            android:id="@+id/btnSaveSettings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Save Settings"
-            android:layout_marginTop="16dp"/>
-
-        <Button
-            android:id="@+id/btnResetDefaults"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Reset to Default"
-            android:layout_marginTop="8dp"/>
-    </LinearLayout>
-</ScrollView>
+        <ImageButton
+            android:id="@+id/btnCloseSettings"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentEnd="true"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Close Settings" />
+    </RelativeLayout>
+</FrameLayout>
