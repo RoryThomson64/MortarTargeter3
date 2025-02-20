@@ -252,10 +252,23 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
 
         btnOpenMap.setOnClickListener {
-            val intent = Intent(this, MapPickerActivity::class.java)
-            currentLocation?.let { location ->
-                intent.putExtra("current_lat", location.latitude)
-                intent.putExtra("current_lon", location.longitude)
+            val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
+            val shellWeightGrams = prefs.getFloat("shell_weight", 0.0f).toDouble()
+            val muzzleVelocity = prefs.getFloat("muzzle_velocity", 100.0f).toDouble()
+            val mass = shellWeightGrams / 1000.0
+            val settings = loadDragSettings()
+            val maxRange = calculateMaxRange(muzzleVelocity, mass, settings)
+
+            // Optionally, log the computed max range.
+            Log.d(TAG, "Computed max range: $maxRange m")
+
+            val intent = Intent(this, MapPickerActivity::class.java).apply {
+                currentLocation?.let { location ->
+                    putExtra("current_lat", location.latitude)
+                    putExtra("current_lon", location.longitude)
+                }
+                // Pass the computed max range.
+                putExtra("max_range", maxRange)
             }
             startActivityForResult(intent, MAP_PICK_REQUEST_CODE)
         }
@@ -422,13 +435,27 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         muzzleVelocity: Double,
         heightDiff: Double
     ) {
-        // Calculate distance and target bearing from current location.
+        // Calculate distance from current location to target.
         val distance = calculateDistance(
             currentLocation!!.latitude,
             currentLocation!!.longitude,
             targetLat,
             targetLon
         )
+        // Compute the maximum range given current parameters.
+        val maxRange = calculateMaxRange(muzzleVelocity, shellWeight, settings)
+
+        // If the target is beyond the maximum range, abort.
+        if (distance > maxRange) {
+            Toast.makeText(
+                this,
+                "Target out of range. Maximum range is ${"%.1f".format(maxRange)} m",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        // Continue with normal firing solution calculations.
         val targetBearing = calculateBearing(
             currentLocation!!.latitude,
             currentLocation!!.longitude,
@@ -436,12 +463,12 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             targetLon
         )
 
-        // Convert wind direction (from which the wind is blowing) into a wind vector.
+        // Convert wind direction into wind vector components.
         val windDirRad = Math.toRadians(windDirection)
         val wind_vx = -windSpeed * sin(windDirRad)
         val wind_vy = -windSpeed * cos(windDirRad)
 
-        // Use the full 2D iterative solver for a high-angle lob solution.
+        // Solve for the high-angle lob solution.
         val (finalElevation, finalBearing) = solveFiringSolutionHighAngle(
             distance,
             targetBearing,
@@ -453,7 +480,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             heightDiff
         )
 
-        // Run one final simulation using the computed solution.
+        // Run a final simulation with the computed solution.
         val finalSim = simulateProjectile(
             muzzleVelocity,
             finalElevation,
@@ -475,7 +502,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val impactBearingRad = atan2(impactX, impactY)
         val impactBearing = (Math.toDegrees(impactBearingRad) + 360) % 360
 
-        // Compute impact coordinates from the current location.
+        // Compute impact coordinates.
         val impactCoordinates = computeImpactCoordinates(
             currentLocation!!.latitude,
             currentLocation!!.longitude,

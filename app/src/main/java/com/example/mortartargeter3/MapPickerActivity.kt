@@ -4,7 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
+import android.graphics.Color
 import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageButton
@@ -17,9 +17,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.*
 import kotlin.math.*
 
 class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
@@ -84,6 +82,8 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
                                 .title("My Location")
                                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                         )
+                        // Add red circle to show max range
+                        addMaxRangeCircle()
                     }
                 }
             }
@@ -121,6 +121,8 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
                         .title("My Location")
                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                 )
+                // Re-add max range circle
+                addMaxRangeCircle()
                 Toast.makeText(this, "Mortar location updated", Toast.LENGTH_SHORT).show()
                 // Return mortar location via intent.
                 val resultIntent = Intent().apply {
@@ -157,6 +159,8 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
             )
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(myLocation!!, 15f))
+            // Add red circle showing max range.
+            addMaxRangeCircle()
         } else {
             val defaultLocation = LatLng(0.0, 0.0)
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLocation, 2f))
@@ -173,6 +177,8 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
                         .title("My Location")
                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                 )
+                // Re-add max range circle in case the map was cleared.
+                addMaxRangeCircle()
             }
             // Add Target marker (blue)
             mMap.addMarker(
@@ -189,6 +195,26 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
                 tvDistance.text = "Distance: ${"%.1f".format(distance)} m"
             }
         }
+    }
+
+    /**
+     * Adds a red circle to the map indicating the maximum range.
+     * The circle is centered at myLocation and its radius is taken from the intent extra "max_range"
+     * (or defaults to 1000 m if not provided).
+     */
+    private fun addMaxRangeCircle() {
+        if (myLocation == null || !::mMap.isInitialized) return
+        // Retrieve max range passed from MainActivity, or use a default.
+        val passedMaxRange = intent.getDoubleExtra("max_range", 1000.0)
+        // Use passedMaxRange directly as the radius (not divided by 2)
+        mMap.addCircle(
+            CircleOptions()
+                .center(myLocation!!)
+                .radius(passedMaxRange)  // Now the circle radius equals the max range.
+                .strokeColor(Color.RED)
+                .strokeWidth(4f)
+                .fillColor(0x22FF0000) // Semi-transparent red fill.
+        )
     }
 
     // Compute distance between two points using the Haversine formula.
