@@ -308,6 +308,8 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
     }
 
+
+
     // --- Firing Solution Solver ---
     private fun calculateFiringSolution() {
         if (currentLocation == null) {
@@ -374,94 +376,42 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         muzzleVelocity: Double,
         heightDiff: Double
     ) {
-        // Calculate distance and bearing from current location to target.
-        val distance = calculateDistance(currentLocation!!.latitude, currentLocation!!.longitude, targetLat, targetLon)
-        val bearing = calculateBearing(currentLocation!!.latitude, currentLocation!!.longitude, targetLat, targetLon)
+        // Calculate distance and target bearing from current location.
+        val distance = calculateDistance(
+            currentLocation!!.latitude,
+            currentLocation!!.longitude,
+            targetLat,
+            targetLon
+        )
+        val targetBearing = calculateBearing(
+            currentLocation!!.latitude,
+            currentLocation!!.longitude,
+            targetLat,
+            targetLon
+        )
+
+        // Convert wind direction (from which the wind is blowing) into a wind vector.
         val windDirRad = Math.toRadians(windDirection)
-        val wind_vx = windSpeed * sin(windDirRad)
-        val wind_vy = windSpeed * cos(windDirRad)
+        val wind_vx = -windSpeed * sin(windDirRad)
+        val wind_vy = -windSpeed * cos(windDirRad)
 
-        // Tolerances and iteration limits.
-        val toleranceRange = 0.5   // meters.
-        val toleranceBearing = 0.5 // degrees.
-        val maxBisectionIterations = 20
-        val maxOuterIterations = 15
+        // Use the full 2D iterative solver for a high-angle lob solution.
+        val (finalElevation, finalBearing) = solveFiringSolutionHighAngle(
+            distance,
+            targetBearing,
+            muzzleVelocity,
+            wind_vx,
+            wind_vy,
+            shellWeight,
+            settings,
+            heightDiff
+        )
 
-        var currentLaunchBearing = bearing
-
-        fun findElevationForRange(launchBearing: Double): Double {
-            val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
-            if (ratio > 1) {
-                Toast.makeText(this, "Target out of range", Toast.LENGTH_SHORT).show()
-                return Double.NaN
-            }
-            val lowAngle = 0.5 * asin(ratio)
-            val dragFreeHighAngle = (Math.PI / 2) - lowAngle + atan2(heightDiff, distance)
-            val initialGuess = dragFreeHighAngle.coerceIn(0.7, Math.PI / 2 - 0.01)
-            var low = (initialGuess - 0.2).coerceAtLeast(0.7)
-            var high = (initialGuess + 0.2).coerceAtMost(Math.PI / 2 - 0.01)
-            var mid = (low + high) / 2.0
-
-            for (i in 0 until maxBisectionIterations) {
-                val simResult = simulateProjectile(
-                    muzzleVelocity,
-                    mid,
-                    launchBearing,
-                    wind_vx,
-                    wind_vy,
-                    shellWeight,
-                    settings.frontalCd,
-                    settings.sideCd,
-                    settings.frontalArea,
-                    settings.sideArea,
-                    settings.airDensity,
-                    heightDiff
-                )
-                val simRange = sqrt(simResult.impactX * simResult.impactX + simResult.impactY * simResult.impactY)
-                val diff = simRange - distance
-                if (abs(diff) < toleranceRange) return mid
-                if (simRange > distance) low = mid else high = mid
-                mid = (low + high) / 2.0
-            }
-            return mid
-        }
-
-        var currentElevation = findElevationForRange(currentLaunchBearing)
-        for (i in 0 until maxOuterIterations) {
-            val simResult = simulateProjectile(
-                muzzleVelocity,
-                currentElevation,
-                currentLaunchBearing,
-                wind_vx,
-                wind_vy,
-                shellWeight,
-                settings.frontalCd,
-                settings.sideCd,
-                settings.frontalArea,
-                settings.sideArea,
-                settings.airDensity,
-                heightDiff
-            )
-            val simX = simResult.impactX
-            val simY = simResult.impactY
-            val bearingRad = Math.toRadians(bearing)
-            val targetX = distance * sin(bearingRad)
-            val targetY = distance * cos(bearingRad)
-            val errorX = targetX - simX
-            val errorY = targetY - simY
-            val errorCross = errorX * cos(bearingRad) - errorY * sin(bearingRad)
-            val deltaBearingRad = atan2(errorCross, distance)
-            val deltaBearingDeg = Math.toDegrees(deltaBearingRad)
-            currentLaunchBearing += deltaBearingDeg
-            currentLaunchBearing = (currentLaunchBearing % 360 + 360) % 360
-            currentElevation = findElevationForRange(currentLaunchBearing)
-            if (abs(deltaBearingDeg) < toleranceBearing) break
-        }
-
+        // Run one final simulation using the computed solution.
         val finalSim = simulateProjectile(
             muzzleVelocity,
-            currentElevation,
-            currentLaunchBearing,
+            finalElevation,
+            finalBearing,
             wind_vx,
             wind_vy,
             shellWeight,
@@ -479,36 +429,45 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val impactBearingRad = atan2(impactX, impactY)
         val impactBearing = (Math.toDegrees(impactBearingRad) + 360) % 360
 
+        // Compute impact coordinates from the current location.
         val impactCoordinates = computeImpactCoordinates(
             currentLocation!!.latitude,
             currentLocation!!.longitude,
             impactDistance,
             impactBearing
         )
-        val finalElevationDeg = Math.toDegrees(currentElevation)
-        val ratio2 = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
-        if (ratio2 > 1.0) {
+
+        // For reference, compute a drag-free high-angle solution.
+        val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
+        if (ratio > 1.0) {
             Toast.makeText(this, "Target out of range", Toast.LENGTH_SHORT).show()
             return
         }
-        val lowAngle = 0.5 * asin(ratio2)
+        val lowAngle = 0.5 * asin(ratio)
         val dragFreeHighAngle = (Math.PI / 2) - lowAngle + atan2(heightDiff, distance)
         val baseElevationDeg = Math.toDegrees(dragFreeHighAngle)
+        val finalElevationDeg = Math.toDegrees(finalElevation)
 
         // Save the computed shot.
         lastShot = Shot(
             id = System.currentTimeMillis(),
-            impactLat = if (rbAuto.isChecked || rbPlusCode.isChecked) etTargetLat.text.toString().toDoubleOrNull() ?: impactCoordinates.first else impactCoordinates.first,
-            impactLon = if (rbAuto.isChecked || rbPlusCode.isChecked) etTargetLon.text.toString().toDoubleOrNull() ?: impactCoordinates.second else impactCoordinates.second,
+            impactLat = if (rbAuto.isChecked || rbPlusCode.isChecked)
+                etTargetLat.text.toString().toDoubleOrNull() ?: impactCoordinates.first
+            else
+                impactCoordinates.first,
+            impactLon = if (rbAuto.isChecked || rbPlusCode.isChecked)
+                etTargetLon.text.toString().toDoubleOrNull() ?: impactCoordinates.second
+            else
+                impactCoordinates.second,
             timestamp = System.currentTimeMillis()
         )
 
         tvResult.text = "Firing Solution with Drag & Side Drag:\n\n" +
                 "Target Distance: ${"%.1f".format(distance)} m\n" +
-                "Target Bearing: ${"%.1f".format(bearing)}°\n\n" +
+                "Target Bearing: ${"%.1f".format(targetBearing)}°\n\n" +
                 "Set Mortar to:\n" +
                 "   Elevation: ${"%.1f".format(finalElevationDeg)}°\n" +
-                "   Bearing:   ${"%.1f".format(currentLaunchBearing)}°\n\n" +
+                "   Bearing:   ${"%.1f".format(finalBearing)}°\n\n" +
                 "Additional Details:\n" +
                 "   Drag-Free Elevation (High-Angle Lob): ${"%.1f".format(baseElevationDeg)}°\n" +
                 "   Time to Impact: ${"%.2f".format(flightTime)} s\n" +
@@ -519,6 +478,175 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                 "   Wind: ${"%.2f".format(windSpeed)} m/s @ ${"%.1f".format(windDirection)}°"
     }
 
+    /**
+     * Two-dimensional iterative solver for a high-angle lob solution.
+     * Adjusts both the elevation and bearing until the simulated impact point converges to the target.
+     *
+     * @return Pair(elevation in radians, bearing in degrees)
+     */
+    private fun solveFiringSolutionHighAngle(
+        distance: Double,
+        targetBearing: Double,
+        muzzleVelocity: Double,
+        wind_vx: Double,
+        wind_vy: Double,
+        shellWeight: Double,
+        settings: DragSettings,
+        heightDiff: Double
+    ): Pair<Double, Double> {
+        // Compute the no-drag solution ratio.
+        val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
+        // For a high-angle lob, we use the complementary solution and add height adjustment.
+        var elevation = if (ratio <= 1)
+            (Math.PI / 2) - 0.5 * asin(ratio) + atan2(heightDiff, distance)
+        else
+            (Math.PI / 2) - 0.1
+
+        // Constrain the initial guess within 40° to 90°.
+        val minAngle = Math.toRadians(40.0)
+        val maxAngle = Math.toRadians(90.0)
+        elevation = elevation.coerceIn(minAngle, maxAngle)
+        var bearing = targetBearing
+
+        // Tolerance and iteration parameters.
+        val tolerance = 0.1  // meters acceptable error in impact position.
+        val maxIterations = 100
+        val kElev = 0.03   // Gain for elevation correction.
+        val kBearing = 0.1 // Gain for bearing correction.
+
+        // Convert target bearing into local X-Y coordinates.
+        val targetBearingRad = Math.toRadians(targetBearing)
+        val targetX = distance * sin(targetBearingRad)
+        val targetY = distance * cos(targetBearingRad)
+
+        for (i in 0 until maxIterations) {
+            // Simulate the projectile trajectory for the current guess.
+            val simResult = simulateProjectile(
+                muzzleVelocity,
+                elevation,
+                bearing,
+                wind_vx,
+                wind_vy,
+                shellWeight,
+                settings.frontalCd,
+                settings.sideCd,
+                settings.frontalArea,
+                settings.sideArea,
+                settings.airDensity,
+                heightDiff
+            )
+            val simX = simResult.impactX
+            val simY = simResult.impactY
+
+            // Compute error between the simulated impact and the target.
+            val errorX = targetX - simX
+            val errorY = targetY - simY
+            val errorDistance = sqrt(errorX * errorX + errorY * errorY)
+
+            if (errorDistance < tolerance) break
+
+            // Calculate the simulated range.
+            val simRange = sqrt(simX * simX + simY * simY)
+            // Compute a range error.
+            val rangeError = simRange - distance
+            // Use an adaptive gain: the larger the error, the more you adjust.
+            // For example, multiply by (1 + abs(rangeError)/distance)
+            val adaptiveFactor = 1.0 + abs(rangeError) / distance
+            // Increase the elevation gain if overshooting (rangeError positive).
+            val dElev = kElev * rangeError * adaptiveFactor / distance
+            elevation += dElev
+            // Clamp the elevation.
+            elevation = elevation.coerceIn(minAngle, maxAngle)
+
+            // Update bearing as before.
+            val desiredBearing = (Math.toDegrees(atan2(errorX, errorY)) + 360) % 360
+            val dBearing = kBearing * (((desiredBearing - bearing + 540) % 360) - 180)
+            bearing = (bearing + dBearing + 360) % 360
+        }
+        return Pair(elevation, bearing)
+    }
+
+
+
+    /**
+     * Two-dimensional iterative solver that adjusts both the elevation and bearing
+     * until the simulated impact point converges to the target.
+     *
+     * @return Pair(elevation in radians, bearing in degrees)
+     */
+    private fun solveFiringSolution(
+        distance: Double,
+        targetBearing: Double,
+        muzzleVelocity: Double,
+        wind_vx: Double,
+        wind_vy: Double,
+        shellWeight: Double,
+        settings: DragSettings,
+        heightDiff: Double
+    ): Pair<Double, Double> {
+        // Initial guess from the no-drag ballistic solution (choose lower-angle solution).
+        val ratio = (distance * GRAVITY) / (muzzleVelocity * muzzleVelocity)
+        var elevation = if (ratio <= 1) 0.5 * asin(ratio) else 0.1
+        var bearing = targetBearing
+
+        // Tolerance and iteration parameters.
+        val tolerance = 0.5  // meters (acceptable error in impact position).
+        val maxIterations = 50
+        val kElev = 0.05   // Gain for elevation correction.
+        val kBearing = 0.1 // Gain for bearing correction.
+
+        // Define a minimum elevation (in radians) to avoid negative launch angles.
+        val minElevation = 0.1  // ~5.7 degrees
+
+        // Convert target bearing into local X-Y coordinates.
+        val targetBearingRad = Math.toRadians(targetBearing)
+        val targetX = distance * sin(targetBearingRad)
+        val targetY = distance * cos(targetBearingRad)
+
+        for (i in 0 until maxIterations) {
+            // Simulate the projectile trajectory for the current guess.
+            val simResult = simulateProjectile(
+                muzzleVelocity,
+                elevation,
+                bearing,
+                wind_vx,
+                wind_vy,
+                shellWeight,
+                settings.frontalCd,
+                settings.sideCd,
+                settings.frontalArea,
+                settings.sideArea,
+                settings.airDensity,
+                heightDiff
+            )
+            val simX = simResult.impactX
+            val simY = simResult.impactY
+
+            // Compute error between the simulated impact and the target position.
+            val errorX = targetX - simX
+            val errorY = targetY - simY
+            val errorDistance = sqrt(errorX * errorX + errorY * errorY)
+
+            if (errorDistance < tolerance) break
+
+            // Update elevation based on range error.
+            val simRange = sqrt(simX * simX + simY * simY)
+            val dElev = kElev * (distance - simRange) / distance
+            elevation += dElev
+            // Enforce a lower bound to avoid negative elevation.
+            elevation = max(elevation, minElevation)
+
+            // Update bearing based on lateral error.
+            // Determine the desired bearing from the error vector.
+            val desiredBearing = (Math.toDegrees(atan2(errorX, errorY)) + 360) % 360
+            // Compute a small bearing correction (handling wrap-around properly).
+            val dBearing = kBearing * (((desiredBearing - bearing + 540) % 360) - 180)
+            bearing = (bearing + dBearing + 360) % 360
+        }
+        return Pair(elevation, bearing)
+    }
+
+
     // --- Simulation using RK4 Integration & Drag Settings ---
     private fun simulateProjectile(
         muzzleVelocity: Double,
@@ -528,13 +656,14 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         wind_vy: Double,
         mass: Double,
         frontalCd: Double,
-        sideCd: Double,
+        sideCd: Double,      // (Unused in this revised model)
         frontalArea: Double,
-        sideArea: Double,
+        sideArea: Double,    // (Unused in this revised model)
         rho: Double,
         targetHeight: Double
     ): SimulationResult {
         val launchBearingRad = Math.toRadians(launchBearing)
+        // Initial velocity components.
         val initialVx = muzzleVelocity * cos(elevation) * sin(launchBearingRad)
         val initialVy = muzzleVelocity * cos(elevation) * cos(launchBearingRad)
         val initialVz = muzzleVelocity * sin(elevation)
@@ -546,13 +675,6 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         var prevState = state.copyOf()
         var prevT = t
 
-        // Fixed launch axis.
-        val axisX = cos(elevation) * sin(launchBearingRad)
-        val axisY = cos(elevation) * cos(launchBearingRad)
-        val axisZ = sin(elevation)
-        val axisMag = sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ)
-        val axis = Triple(axisX / axisMag, axisY / axisMag, axisZ / axisMag)
-
         // Adjust target altitude slightly if >= 0 to ensure proper detection on descent.
         val effectiveTarget = if (targetHeight >= 0) targetHeight - 0.001 else targetHeight
 
@@ -560,31 +682,20 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val vx = s[3]
             val vy = s[4]
             val vz = s[5]
+            // Compute the relative velocity (projectile velocity minus wind).
             val relVx = vx - wind_vx
             val relVy = vy - wind_vy
             val relVz = vz
-            val vParallel = relVx * axis.first + relVy * axis.second + relVz * axis.third
-            val parallelVx = vParallel * axis.first
-            val parallelVy = vParallel * axis.second
-            val parallelVz = vParallel * axis.third
-            val perpVx = relVx - parallelVx
-            val perpVy = relVy - parallelVy
-            val perpVz = relVz - parallelVz
-            val vPerpMag = sqrt(perpVx * perpVx + perpVy * perpVy + perpVz * perpVz)
-            val FdParallelMag = 0.5 * rho * (vParallel * vParallel) * frontalCd * frontalArea
-            val FdParallelX = -FdParallelMag * sign(vParallel) * axis.first
-            val FdParallelY = -FdParallelMag * sign(vParallel) * axis.second
-            val FdParallelZ = -FdParallelMag * sign(vParallel) * axis.third
-            val FdSideMag = if (vPerpMag > 0) 0.5 * rho * (vPerpMag * vPerpMag) * sideCd * sideArea else 0.0
-            val FdSideX = if (vPerpMag > 0) -FdSideMag * (perpVx / vPerpMag) else 0.0
-            val FdSideY = if (vPerpMag > 0) -FdSideMag * (perpVy / vPerpMag) else 0.0
-            val FdSideZ = if (vPerpMag > 0) -FdSideMag * (perpVz / vPerpMag) else 0.0
-            val FdX = FdParallelX + FdSideX
-            val FdY = FdParallelY + FdSideY
-            val FdZ = FdParallelZ + FdSideZ
-            val ax = FdX / mass
-            val ay = FdY / mass
-            val az = FdZ / mass - 9.81
+            val speed = sqrt(relVx * relVx + relVy * relVy + relVz * relVz)
+            // Drag magnitude using the frontal drag coefficient and area.
+            val dragMagnitude = 0.5 * rho * speed * speed * frontalCd * frontalArea
+            // Apply drag opposite to the relative velocity direction.
+            val dragX = if (speed != 0.0) -dragMagnitude * (relVx / speed) else 0.0
+            val dragY = if (speed != 0.0) -dragMagnitude * (relVy / speed) else 0.0
+            val dragZ = if (speed != 0.0) -dragMagnitude * (relVz / speed) else 0.0
+            val ax = dragX / mass
+            val ay = dragY / mass
+            val az = dragZ / mass - 9.81
             return doubleArrayOf(vx, vy, vz, ax, ay, az)
         }
 
@@ -631,6 +742,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
         return SimulationResult(state[0], state[1], t, maxZ)
     }
+
 
     // Haversine formula.
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
