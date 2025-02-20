@@ -101,19 +101,24 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         private const val GRAVITY = 9.81  // m/s²
         private const val EARTH_RADIUS = 6371000.0  // meters
     }
-    // then override the callback
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
+        super.onActivityResult(requestCode, resultCode, data);
         if ( resultCode == Activity.RESULT_OK) {
             data?.let {
 
-                val selectedLat = it.getDoubleExtra("selected_lat", 0.0)
-                val selectedLon = it.getDoubleExtra("selected_lon", 0.0)
+                val selectedLat = it.getDoubleExtra("selected_lat", 0.0);
+                val selectedLon = it.getDoubleExtra("selected_lon", 0.0);
+
+                val mortarLat = it.getDoubleExtra("mortar_lat", currentLocation?.latitude?:0.0);
+                val mortarLon = it.getDoubleExtra("mortar_lon", currentLocation?.longitude?:0.0);
 
 
-                etTargetLat.setText(selectedLat.toString())
-                etTargetLon.setText(selectedLon.toString())
+                etTargetLat.setText(selectedLat.toString());
+                etTargetLon.setText(selectedLon.toString());
 
+                currentLocation = LatLng(mortarLat,mortarLon);
+                tvCurrentLocation.text = "Current Location: ${currentLocation!!.latitude.toString()}, ${currentLocation!!.longitude.toString()}"
             }
         }
     }
