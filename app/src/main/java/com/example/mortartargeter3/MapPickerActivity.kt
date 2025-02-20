@@ -51,7 +51,7 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
         btnConfirm = findViewById(R.id.btnConfirm)
         btnMoveMortar = findViewById(R.id.btnMoveMortar)
 
-        // Button listeners
+        // Set up button listeners
         btnClose.setOnClickListener { finish() }
 
         btnToggleSatellite.setOnClickListener {
@@ -89,16 +89,16 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             }
         }
 
-        // When Confirm is pressed, return the selected target location.
         btnConfirm.setOnClickListener {
             if (selectedLatLng == null) {
                 Toast.makeText(this, "Please select a target location", Toast.LENGTH_SHORT).show()
             } else {
-                // Optionally, compute distance from myLocation to selected target.
+                // Return target coordinates.
                 val distance = myLocation?.let { origin ->
                     computeDistance(origin.latitude, origin.longitude, selectedLatLng!!.latitude, selectedLatLng!!.longitude)
                 } ?: 0.0
                 val resultIntent = Intent().apply {
+                    putExtra("update_type", "target")
                     putExtra("selected_lat", selectedLatLng!!.latitude)
                     putExtra("selected_lon", selectedLatLng!!.longitude)
                     putExtra("distance", distance)
@@ -108,7 +108,6 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             }
         }
 
-        // New "Move Mortar" button: update mortar location to the dropped pin.
         btnMoveMortar.setOnClickListener {
             if (selectedLatLng == null) {
                 Toast.makeText(this, "Please drop a pin to set mortar location", Toast.LENGTH_SHORT).show()
@@ -123,6 +122,14 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
                 )
                 Toast.makeText(this, "Mortar location updated", Toast.LENGTH_SHORT).show()
+                // Return mortar location via intent.
+                val resultIntent = Intent().apply {
+                    putExtra("update_type", "mortar")
+                    putExtra("mortar_lat", myLocation!!.latitude)
+                    putExtra("mortar_lon", myLocation!!.longitude)
+                }
+                setResult(Activity.RESULT_OK, resultIntent)
+                finish()
             }
         }
 
@@ -155,10 +162,10 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLocation, 2f))
         }
 
-        // Set a listener for map clicks to select target location.
+        // Set a listener for map clicks to select target location
         mMap.setOnMapClickListener { latLng ->
             mMap.clear()
-            // Re-add My Location marker if available.
+            // Re-add My Location marker if available
             myLocation?.let {
                 mMap.addMarker(
                     MarkerOptions()
@@ -176,7 +183,7 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             )
             selectedLatLng = latLng
 
-            // Update the distance bar if myLocation is available.
+            // Update the distance text if myLocation is available
             myLocation?.let { origin ->
                 val distance = computeDistance(origin.latitude, origin.longitude, latLng.latitude, latLng.longitude)
                 tvDistance.text = "Distance: ${"%.1f".format(distance)} m"

@@ -21,6 +21,7 @@ import kotlin.math.*
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapsSdkInitializedCallback
 import com.google.android.gms.maps.MapsInitializer.Renderer
+import com.google.android.gms.maps.model.LatLng
 import java.io.IOException
 
 // Top-level SimulationResult for unambiguous access.
@@ -71,7 +72,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
     // Location client.
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private var currentLocation: Location? = null
+    private var currentLocation: LatLng? = null
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1000
@@ -230,19 +231,23 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == MAP_PICK_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
-            val lat = data.getDoubleExtra("selected_lat", 0.0)
-            val lon = data.getDoubleExtra("selected_lon", 0.0)
-            // If manual mode is set, update the manual origin text boxes,
-            // otherwise update the auto target coordinate text boxes.
-            if (rbManual.isChecked) {
-                etManualOriginLat.setText(lat.toString())
-                etManualOriginLon.setText(lon.toString())
-            } else {
-                etTargetLat.setText(lat.toString())
-                etTargetLon.setText(lon.toString())
+            val updateType = data.getStringExtra("update_type")
+            if (updateType == "mortar") {
+                // Update mortar location in MainActivity.
+                val newLat = data.getDoubleExtra("mortar_lat", 0.0)
+                val newLon = data.getDoubleExtra("mortar_lon", 0.0)
+                currentLocation = LatLng(newLat, newLon)
+                tvCurrentLocation.text = "Current Location: $newLat, $newLon"
+            } else if (updateType == "target") {
+                // Update target coordinates.
+                val targetLat = data.getDoubleExtra("selected_lat", 0.0)
+                val targetLon = data.getDoubleExtra("selected_lon", 0.0)
+                etTargetLat.setText(targetLat.toString())
+                etTargetLon.setText(targetLon.toString())
             }
         }
     }
+
 
     private fun requestLocationPermission() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -275,15 +280,16 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             == PackageManager.PERMISSION_GRANTED ||
             ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
             == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                 if (location != null) {
-                    currentLocation = location
+                    currentLocation = LatLng(location.latitude, location.longitude)
                     tvCurrentLocation.text = "Current Location: ${location.latitude}, ${location.longitude}"
                     fetchWindData(location.latitude, location.longitude)
                 } else {
                     tvCurrentLocation.text = "Current Location: Unknown"
                 }
             }
+
         }
     }
 
@@ -521,22 +527,28 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         var t = 0.0
         val dt = 0.001
         var maxZ = 0.0
+        var reachedApex = false
+        var prevState = state.copyOf()
+        var prevT = t
 
-        // Fixed launch axis.
+        // Compute fixed launch axis.
         val axisX = cos(elevation) * sin(launchBearingRad)
         val axisY = cos(elevation) * cos(launchBearingRad)
         val axisZ = sin(elevation)
         val axisMag = sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ)
         val axis = Triple(axisX / axisMag, axisY / axisMag, axisZ / axisMag)
 
+        // Local function: compute derivatives of the state.
         fun derivatives(s: DoubleArray): DoubleArray {
             val vx = s[3]
             val vy = s[4]
             val vz = s[5]
+            // Relative velocity (ignoring vertical wind)
             val relVx = vx - wind_vx
             val relVy = vy - wind_vy
             val relVz = vz
             val vRelMag = sqrt(relVx * relVx + relVy * relVy + relVz * relVz)
+            // Decompose into components along the fixed axis and perpendicular.
             val vParallel = relVx * axis.first + relVy * axis.second + relVz * axis.third
             val parallelVx = vParallel * axis.first
             val parallelVy = vParallel * axis.second
@@ -545,6 +557,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val perpVy = relVy - parallelVy
             val perpVz = relVz - parallelVz
             val vPerpMag = sqrt(perpVx * perpVx + perpVy * perpVy + perpVz * perpVz)
+            // Compute drag forces.
             val FdParallelMag = 0.5 * rho * (vParallel * vParallel) * frontalCd * frontalArea
             val FdParallelX = -FdParallelMag * sign(vParallel) * axis.first
             val FdParallelY = -FdParallelMag * sign(vParallel) * axis.second
@@ -556,12 +569,14 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val FdX = FdParallelX + FdSideX
             val FdY = FdParallelY + FdSideY
             val FdZ = FdParallelZ + FdSideZ
+            // Accelerations (adding gravity in -z).
             val ax = FdX / mass
             val ay = FdY / mass
             val az = FdZ / mass - 9.81
             return doubleArrayOf(vx, vy, vz, ax, ay, az)
         }
 
+        // Local function: RK4 integration step.
         fun rk4Step(s: DoubleArray, dt: Double): DoubleArray {
             val k1 = derivatives(s)
             val s2 = DoubleArray(6) { i -> s[i] + 0.5 * dt * k1[i] }
@@ -573,20 +588,32 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             return DoubleArray(6) { i -> s[i] + dt / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) }
         }
 
-        var prevState = state.copyOf()
-        var prevT = t
-        var reachedApex = false
         while (t < 100) {
             if (state[2] > maxZ) maxZ = state[2]
             if (state[5] < 0) reachedApex = true
-            if ((prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
-                val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
-                    (prevState[2] - targetHeight) / (prevState[2] - state[2])
-                else 1.0
-                val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
-                val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
-                val impactT = prevT + (t - prevT) * fraction
-                return SimulationResult(impactX, impactY, impactT, maxZ)
+
+            if (targetHeight < 0) {
+                // For targets below launch altitude, detect crossing immediately.
+                if ((prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
+                    val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
+                        (prevState[2] - targetHeight) / (prevState[2] - state[2])
+                    else 1.0
+                    val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
+                    val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
+                    val impactT = prevT + (t - prevT) * fraction
+                    return SimulationResult(impactX, impactY, impactT, maxZ)
+                }
+            } else {
+                // For targets at or above launch altitude, wait until after apex and descent.
+                if (reachedApex && state[5] < 0 && (prevState[2] - targetHeight) * (state[2] - targetHeight) <= 0.0) {
+                    val fraction = if (abs(prevState[2] - targetHeight) > 1e-6)
+                        (prevState[2] - targetHeight) / (prevState[2] - state[2])
+                    else 1.0
+                    val impactX = prevState[0] + (state[0] - prevState[0]) * fraction
+                    val impactY = prevState[1] + (state[1] - prevState[1]) * fraction
+                    val impactT = prevT + (t - prevT) * fraction
+                    return SimulationResult(impactX, impactY, impactT, maxZ)
+                }
             }
             prevState = state.copyOf()
             prevT = t
@@ -595,6 +622,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
         return SimulationResult(state[0], state[1], t, maxZ)
     }
+
 
     // Haversine formula.
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
