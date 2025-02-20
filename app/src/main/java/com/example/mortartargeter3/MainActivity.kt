@@ -101,7 +101,22 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         private const val GRAVITY = 9.81  // m/s²
         private const val EARTH_RADIUS = 6371000.0  // meters
     }
+    // then override the callback
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if ( resultCode == Activity.RESULT_OK) {
+            data?.let {
+                val updateType = it.getStringExtra("update_type")
+                val selectedLat = it.getDoubleExtra("selected_lat", 0.0)
+                val selectedLon = it.getDoubleExtra("selected_lon", 0.0)
+                val distance = it.getDoubleExtra("distance", 0.0)
 
+                    etTargetLat.setText(selectedLat.toString())
+                    etTargetLon.setText(selectedLon.toString())
+
+            }
+        }
+    }
     // Helper: load drag settings from SharedPreferences.
     private fun loadDragSettings(): DragSettings {
         val prefs = getSharedPreferences("DragSettings", MODE_PRIVATE)
