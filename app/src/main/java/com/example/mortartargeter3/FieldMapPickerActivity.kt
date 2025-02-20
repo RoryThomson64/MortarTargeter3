@@ -48,7 +48,6 @@ class FieldMapPickerActivity : FragmentActivity(), OnMapReadyCallback {
         btnToggleSatellite = findViewById(R.id.btnToggleSatellite)
         btnMyLocation = findViewById(R.id.btnMyLocation)
         btnConfirm = findViewById(R.id.btnConfirm)
-        tvPlusCode = findViewById(R.id.tvPlusCodeResult)
         tvDistance = findViewById(R.id.tvDistance)
 
         btnClose.setOnClickListener { finish() }
@@ -66,7 +65,6 @@ class FieldMapPickerActivity : FragmentActivity(), OnMapReadyCallback {
                 Toast.makeText(this, "Please select a target location", Toast.LENGTH_SHORT).show()
             } else {
                 val plusCode = OpenLocationCode.encode(selectedLatLng!!.latitude, selectedLatLng!!.longitude, 10)
-                tvPlusCode.text = "Plus Code: $plusCode"
                 Toast.makeText(this, "Plus Code: $plusCode", Toast.LENGTH_LONG).show()
                 val resultIntent = Intent().apply {
                     putExtra("plus_code", plusCode)
