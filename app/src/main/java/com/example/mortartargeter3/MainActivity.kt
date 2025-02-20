@@ -111,8 +111,8 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
                 val selectedLon = it.getDoubleExtra("selected_lon", 0.0)
                 val distance = it.getDoubleExtra("distance", 0.0)
 
-                    etTargetLat.setText(selectedLat.toString())
-                    etTargetLon.setText(selectedLon.toString())
+                etTargetLat.setText(selectedLat.toString())
+                etTargetLon.setText(selectedLon.toString())
 
             }
         }
