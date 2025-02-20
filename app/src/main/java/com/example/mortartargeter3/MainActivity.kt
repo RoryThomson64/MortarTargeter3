@@ -107,18 +107,34 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         if ( resultCode == Activity.RESULT_OK) {
             data?.let {
 
-                val selectedLat = it.getDoubleExtra("selected_lat", 0.0);
-                val selectedLon = it.getDoubleExtra("selected_lon", 0.0);
+                val selectedLat = it.getDoubleExtra("selected_lat", etTargetLat.text.toString().toDoubleOrNull() ?: 0.0);
+                val selectedLon = it.getDoubleExtra("selected_lon", etTargetLon.text.toString().toDoubleOrNull() ?: 0.0);
 
                 val mortarLat = it.getDoubleExtra("mortar_lat", currentLocation?.latitude?:0.0);
                 val mortarLon = it.getDoubleExtra("mortar_lon", currentLocation?.longitude?:0.0);
+                val distance = it.getDoubleExtra("distance", etManualDistance.text.toString().toDoubleOrNull() ?: 0.0);
+
+                currentLocation = LatLng(mortarLat,mortarLon);
 
 
                 etTargetLat.setText(selectedLat.toString());
                 etTargetLon.setText(selectedLon.toString());
 
-                currentLocation = LatLng(mortarLat,mortarLon);
                 tvCurrentLocation.text = "Current Location: ${currentLocation!!.latitude.toString()}, ${currentLocation!!.longitude.toString()}"
+
+                etManualOriginLat.setText(currentLocation?.latitude.toString());
+                etManualOriginLon.setText(currentLocation?.longitude.toString());
+
+                etManualDistance.setText(distance.toString());
+                if(currentLocation != null && etTargetLat.text.toString().toDoubleOrNull() != null&&etTargetLon.text.toString().toDoubleOrNull() != null) {
+                    val bearing = calculateBearing(
+                        currentLocation!!.latitude,
+                        currentLocation!!.longitude,
+                        etTargetLat.text.toString().toDouble(),
+                        etTargetLon.text.toString().toDouble()
+                    )
+                    etManualBearing.setText(bearing.toString());
+                }
             }
         }
     }
