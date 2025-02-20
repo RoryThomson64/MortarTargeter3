@@ -16,7 +16,6 @@
             android:orientation="vertical">
 
             <!-- Display local time (optional, also shown in top bar) -->
-
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -81,6 +80,17 @@
                 android:text="Shell Weight (grams):" />
             <EditText
                 android:id="@+id/etShellWeight"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal" />
+
+            <!-- New Muzzle Velocity field -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Muzzle Velocity (m/s):" />
+            <EditText
+                android:id="@+id/etMuzzleVelocity"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal" />

@@ -18,7 +18,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var etFrontalArea: EditText
     private lateinit var etSideArea: EditText
     private lateinit var etAirDensity: EditText
-    private lateinit var etShellWeight: EditText  // New field for shell weight
+    private lateinit var etShellWeight: EditText  // Shell weight field
+    private lateinit var etMuzzleVelocity: EditText  // New field for muzzle velocity
 
     // Preset UI elements.
     private lateinit var etPresetName: EditText
@@ -31,13 +32,14 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnResetDefaults: Button
     private lateinit var btnCloseSettings: ImageButton
 
-    // Default values for drag settings and shell weight.
+    // Default values.
     private val DEFAULT_FRONTAL_CD = 0.3f
     private val DEFAULT_SIDE_CD = 1.2f
     private val DEFAULT_FRONTAL_AREA = 0.01f
     private val DEFAULT_SIDE_AREA = 0.015f
     private val DEFAULT_AIR_DENSITY = 1.225f
-    private val DEFAULT_SHELL_WEIGHT = 0.0f  // Default shell weight in grams
+    private val DEFAULT_SHELL_WEIGHT = 0.0f  // in grams
+    private val DEFAULT_MUZZLE_VELOCITY = 100.0f  // in m/s (adjust as needed)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +51,8 @@ class SettingsActivity : AppCompatActivity() {
         etFrontalArea = findViewById(R.id.etFrontalArea)
         etSideArea = findViewById(R.id.etSideArea)
         etAirDensity = findViewById(R.id.etAirDensity)
-        etShellWeight = findViewById(R.id.etShellWeight)  // Bind the shell weight field
+        etShellWeight = findViewById(R.id.etShellWeight)
+        etMuzzleVelocity = findViewById(R.id.etMuzzleVelocity)
 
         // Bind preset UI elements.
         etPresetName = findViewById(R.id.etPresetName)
@@ -70,8 +73,9 @@ class SettingsActivity : AppCompatActivity() {
         etSideArea.setText(prefs.getFloat("side_area", DEFAULT_SIDE_AREA).toString())
         etAirDensity.setText(prefs.getFloat("air_density", DEFAULT_AIR_DENSITY).toString())
         etShellWeight.setText(prefs.getFloat("shell_weight", DEFAULT_SHELL_WEIGHT).toString())
+        etMuzzleVelocity.setText(prefs.getFloat("muzzle_velocity", DEFAULT_MUZZLE_VELOCITY).toString())
 
-        // Save active settings button.
+        // Save active settings.
         btnSave.setOnClickListener {
             val newFrontalCd = etFrontalCd.text.toString().toFloatOrNull() ?: DEFAULT_FRONTAL_CD
             val newSideCd = etSideCd.text.toString().toFloatOrNull() ?: DEFAULT_SIDE_CD
@@ -79,6 +83,7 @@ class SettingsActivity : AppCompatActivity() {
             val newSideArea = etSideArea.text.toString().toFloatOrNull() ?: DEFAULT_SIDE_AREA
             val newAirDensity = etAirDensity.text.toString().toFloatOrNull() ?: DEFAULT_AIR_DENSITY
             val newShellWeight = etShellWeight.text.toString().toFloatOrNull() ?: DEFAULT_SHELL_WEIGHT
+            val newMuzzleVelocity = etMuzzleVelocity.text.toString().toFloatOrNull() ?: DEFAULT_MUZZLE_VELOCITY
 
             prefs.edit().apply {
                 putFloat("frontal_cd", newFrontalCd)
@@ -86,7 +91,8 @@ class SettingsActivity : AppCompatActivity() {
                 putFloat("frontal_area", newFrontalArea)
                 putFloat("side_area", newSideArea)
                 putFloat("air_density", newAirDensity)
-                putFloat("shell_weight", newShellWeight)  // Save shell weight
+                putFloat("shell_weight", newShellWeight)
+                putFloat("muzzle_velocity", newMuzzleVelocity)
                 apply()
             }
             Toast.makeText(this, "Active settings saved.", Toast.LENGTH_SHORT).show()
@@ -102,6 +108,7 @@ class SettingsActivity : AppCompatActivity() {
                 putFloat("side_area", DEFAULT_SIDE_AREA)
                 putFloat("air_density", DEFAULT_AIR_DENSITY)
                 putFloat("shell_weight", DEFAULT_SHELL_WEIGHT)
+                putFloat("muzzle_velocity", DEFAULT_MUZZLE_VELOCITY)
                 apply()
             }
             etFrontalCd.setText(DEFAULT_FRONTAL_CD.toString())
@@ -110,10 +117,11 @@ class SettingsActivity : AppCompatActivity() {
             etSideArea.setText(DEFAULT_SIDE_AREA.toString())
             etAirDensity.setText(DEFAULT_AIR_DENSITY.toString())
             etShellWeight.setText(DEFAULT_SHELL_WEIGHT.toString())
+            etMuzzleVelocity.setText(DEFAULT_MUZZLE_VELOCITY.toString())
             Toast.makeText(this, "Settings reset to default", Toast.LENGTH_SHORT).show()
         }
 
-        // Preset management (save/load/delete) remains unchanged, but include the shell weight value.
+        // Preset management remains largely unchanged—include the muzzle velocity value.
         btnSavePreset.setOnClickListener {
             val presetName = etPresetName.text.toString().trim()
             if (presetName.isEmpty()) {
@@ -160,11 +168,8 @@ class SettingsActivity : AppCompatActivity() {
                     etFrontalArea.setText(presetObj.getDouble("frontal_area").toString())
                     etSideArea.setText(presetObj.getDouble("side_area").toString())
                     etAirDensity.setText(presetObj.getDouble("air_density").toString())
-                    if (presetObj.has("shell_weight")) {
-                        etShellWeight.setText(presetObj.getDouble("shell_weight").toString())
-                    } else {
-                        etShellWeight.setText(DEFAULT_SHELL_WEIGHT.toString())
-                    }
+                    etShellWeight.setText(presetObj.optDouble("shell_weight", DEFAULT_SHELL_WEIGHT.toDouble()).toString())
+                    etMuzzleVelocity.setText(presetObj.optDouble("muzzle_velocity", DEFAULT_MUZZLE_VELOCITY.toDouble()).toString())
                     Toast.makeText(this, "Preset '$selectedPreset' loaded.", Toast.LENGTH_SHORT).show()
                 }
                 .show()
@@ -202,7 +207,40 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         btnCloseSettings.setOnClickListener {
-            finish()
+            AlertDialog.Builder(this)
+                .setTitle("Save Settings?")
+                .setMessage("Do you wish to save/activate settings before quitting?")
+                .setPositiveButton("Yes") { _, _ ->
+                    // Save settings (same as btnSave logic)
+                    val newFrontalCd = etFrontalCd.text.toString().toFloatOrNull() ?: DEFAULT_FRONTAL_CD
+                    val newSideCd = etSideCd.text.toString().toFloatOrNull() ?: DEFAULT_SIDE_CD
+                    val newFrontalArea = etFrontalArea.text.toString().toFloatOrNull() ?: DEFAULT_FRONTAL_AREA
+                    val newSideArea = etSideArea.text.toString().toFloatOrNull() ?: DEFAULT_SIDE_AREA
+                    val newAirDensity = etAirDensity.text.toString().toFloatOrNull() ?: DEFAULT_AIR_DENSITY
+                    val newShellWeight = etShellWeight.text.toString().toFloatOrNull() ?: DEFAULT_SHELL_WEIGHT
+                    val newMuzzleVelocity = etMuzzleVelocity.text.toString().toFloatOrNull() ?: DEFAULT_MUZZLE_VELOCITY
+
+                    val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
+                    prefs.edit().apply {
+                        putFloat("frontal_cd", newFrontalCd)
+                        putFloat("side_cd", newSideCd)
+                        putFloat("frontal_area", newFrontalArea)
+                        putFloat("side_area", newSideArea)
+                        putFloat("air_density", newAirDensity)
+                        putFloat("shell_weight", newShellWeight)
+                        putFloat("muzzle_velocity", newMuzzleVelocity)
+                        apply()
+                    }
+                    Toast.makeText(this, "Active settings saved.", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+                .setNegativeButton("No") { _, _ ->
+                    finish()
+                }
+                .setNeutralButton("Cancel") { dialog, _ ->
+                    dialog.dismiss()
+                }
+                .show()
         }
     }
 
@@ -214,6 +252,7 @@ class SettingsActivity : AppCompatActivity() {
             put("side_area", etSideArea.text.toString().toFloatOrNull() ?: DEFAULT_SIDE_AREA)
             put("air_density", etAirDensity.text.toString().toFloatOrNull() ?: DEFAULT_AIR_DENSITY)
             put("shell_weight", etShellWeight.text.toString().toFloatOrNull() ?: DEFAULT_SHELL_WEIGHT)
+            put("muzzle_velocity", etMuzzleVelocity.text.toString().toFloatOrNull() ?: DEFAULT_MUZZLE_VELOCITY)
         }
         presetsJson.put(presetName, presetObj)
         presetsPrefs.edit().putString("presets", presetsJson.toString()).apply()

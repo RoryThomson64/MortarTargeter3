@@ -59,7 +59,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     private lateinit var etWindSpeed: EditText
     private lateinit var etWindDirection: EditText
     // Removed: private lateinit var etShellWeight: EditText
-    private lateinit var etMuzzleVelocity: EditText
+    //private lateinit var etMuzzleVelocity: EditText
     private lateinit var tvHeightDifferenceLabel: TextView
     private lateinit var seekBarHeightDiff: SeekBar
     private lateinit var rbAuto: RadioButton
@@ -178,7 +178,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         etWindSpeed = findViewById(R.id.etWindSpeed)
         etWindDirection = findViewById(R.id.etWindDirection)
         // Removed binding for etShellWeight
-        etMuzzleVelocity = findViewById(R.id.etMuzzleVelocity)
+        //etMuzzleVelocity = findViewById(R.id.etMuzzleVelocity)
         tvHeightDifferenceLabel = findViewById(R.id.tvHeightDifferenceLabel)
         seekBarHeightDiff = findViewById(R.id.seekBarHeightDiff)
         rbAuto = findViewById(R.id.rbAuto)
@@ -262,11 +262,11 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         btnRefreshLocation.setOnClickListener { getLastLocation() }
         btnMaxRange.setOnClickListener {
             val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
-            // Load shell weight from settings instead of a UI field.
             val shellWeightGrams = prefs.getFloat("shell_weight", 0.0f).toDouble()
-            val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull()
-            if (muzzleVelocity == null) {
-                Toast.makeText(this, "Enter valid muzzle velocity", Toast.LENGTH_SHORT).show()
+            // Load muzzle velocity from settings instead of a UI field.
+            val muzzleVelocity = prefs.getFloat("muzzle_velocity", 100.0f).toDouble()
+            if (muzzleVelocity == 0.0) {
+                Toast.makeText(this, "Muzzle velocity is not set in Settings", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             val mass = shellWeightGrams / 1000.0
@@ -274,6 +274,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             val maxRange = calculateMaxRange(muzzleVelocity, mass, settings)
             tvMaxRange.text = "Maximum Range: ${"%.1f".format(maxRange)} m"
         }
+
         btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
@@ -363,11 +364,11 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val settings = loadDragSettings()
         val windSpeed = etWindSpeed.text.toString().toDoubleOrNull() ?: 0.0
         val windDirection = etWindDirection.text.toString().toDoubleOrNull() ?: 0.0
-        // Retrieve shell weight from settings.
         val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
         val shellWeightGrams = prefs.getFloat("shell_weight", 0.0f).toDouble()
         val shellWeight = shellWeightGrams / 1000.0
-        val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull() ?: 0.0
+        // Load muzzle velocity from settings.
+        val muzzleVelocity = prefs.getFloat("muzzle_velocity", 100.0f).toDouble()
         val heightDiff = (seekBarHeightDiff.progress - 50).toDouble()
 
         when {

@@ -73,12 +73,12 @@
 <!--                android:hint="Shell Weight (g)"-->
 <!--                android:inputType="numberDecimal" />-->
 
-            <EditText
-                android:id="@+id/etMuzzleVelocity"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Muzzle Velocity (m/s)"
-                android:inputType="numberDecimal" />
+<!--            <EditText-->
+<!--                android:id="@+id/etMuzzleVelocity"-->
+<!--                android:layout_width="match_parent"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:hint="Muzzle Velocity (m/s)"-->
+<!--                android:inputType="numberDecimal" />-->
 
             <TextView
                 android:id="@+id/tvHeightDifferenceLabel"
