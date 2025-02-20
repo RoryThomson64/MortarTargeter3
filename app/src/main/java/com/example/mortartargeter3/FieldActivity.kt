@@ -15,6 +15,7 @@ class FieldActivity : AppCompatActivity() {
     }
 
     private lateinit var tvPlusCodeResult: TextView
+    private lateinit var tvArtilleryCallout: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,6 +23,7 @@ class FieldActivity : AppCompatActivity() {
 
         val btnSelectTarget: Button = findViewById(R.id.btnSelectTargetOnMap)
         tvPlusCodeResult = findViewById(R.id.tvPlusCodeResult)
+        tvArtilleryCallout = findViewById(R.id.tvArtilleryCallout)
         val btnDone: Button = findViewById(R.id.btnDone)
 
         btnSelectTarget.setOnClickListener {
@@ -46,11 +48,38 @@ class FieldActivity : AppCompatActivity() {
             val lon = data.getDoubleExtra("selected_lon", 0.0)
 
             if (plusCode != null) {
-                tvPlusCodeResult.text = "$plusCode"
+                // Display the Plus Code.
+                tvPlusCodeResult.text = plusCode
+
+                // Automatically generate the artillery call using the NATO phonetic alphabet.
+                val natoCall = generateNatoCall(plusCode)
+                tvArtilleryCallout.text = "Artillery Artillery:\n$natoCall \nConfirm"
+
                 Toast.makeText(this, "Target: $lat, $lon\nPlus Code: $plusCode", Toast.LENGTH_LONG).show()
             } else {
                 Toast.makeText(this, "Error retrieving Plus Code", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    /**
+     * Converts the given Plus Code into a radio callout using the NATO phonetic alphabet.
+     */
+    private fun generateNatoCall(plusCode: String): String {
+        val natoMap = mapOf(
+            'A' to "Alpha",   'B' to "Bravo",   'C' to "Charlie", 'D' to "Delta",
+            'E' to "Echo",    'F' to "Foxtrot", 'G' to "Golf",    'H' to "Hotel",
+            'I' to "India",   'J' to "Juliet",  'K' to "Kilo",    'L' to "Lima",
+            'M' to "Mike",    'N' to "November",'O' to "Oscar",   'P' to "Papa",
+            'Q' to "Quebec",  'R' to "Romeo",   'S' to "Sierra",  'T' to "Tango",
+            'U' to "Uniform", 'V' to "Victor",  'W' to "Whiskey", 'X' to "X-ray",
+            'Y' to "Yankee",  'Z' to "Zulu",
+            '0' to "Zero",    '1' to "One",     '2' to "Two",     '3' to "Three",
+            '4' to "Four",    '5' to "Five",    '6' to "Six",     '7' to "Seven",
+            '8' to "Eight",   '9' to "Niner",   '+' to "Plus"
+        )
+        return plusCode.toUpperCase().map { char ->
+            natoMap[char] ?: char.toString()
+        }.joinToString(" ")
     }
 }

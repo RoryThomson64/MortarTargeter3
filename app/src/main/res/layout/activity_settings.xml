@@ -74,6 +74,17 @@
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal" />
 
+            <!-- New Shell Weight field -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Shell Weight (grams):" />
+            <EditText
+                android:id="@+id/etShellWeight"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal" />
+
             <!-- Buttons to save active settings and reset to defaults -->
             <Button
                 android:id="@+id/btnSaveSettings"

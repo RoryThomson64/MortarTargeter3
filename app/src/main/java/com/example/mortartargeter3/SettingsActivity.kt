@@ -18,8 +18,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var etFrontalArea: EditText
     private lateinit var etSideArea: EditText
     private lateinit var etAirDensity: EditText
+    private lateinit var etShellWeight: EditText  // New field for shell weight
 
-    // Preset UI elements
+    // Preset UI elements.
     private lateinit var etPresetName: EditText
     private lateinit var btnSavePreset: Button
     private lateinit var btnLoadPreset: Button
@@ -29,14 +30,14 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnSave: Button
     private lateinit var btnResetDefaults: Button
     private lateinit var btnCloseSettings: ImageButton
-    private lateinit var tvLocalTime: TextView
 
-    // Default values for a Nerf Vortex (or your chosen defaults)
+    // Default values for drag settings and shell weight.
     private val DEFAULT_FRONTAL_CD = 0.3f
     private val DEFAULT_SIDE_CD = 1.2f
     private val DEFAULT_FRONTAL_AREA = 0.01f
     private val DEFAULT_SIDE_AREA = 0.015f
     private val DEFAULT_AIR_DENSITY = 1.225f
+    private val DEFAULT_SHELL_WEIGHT = 0.0f  // Default shell weight in grams
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +49,7 @@ class SettingsActivity : AppCompatActivity() {
         etFrontalArea = findViewById(R.id.etFrontalArea)
         etSideArea = findViewById(R.id.etSideArea)
         etAirDensity = findViewById(R.id.etAirDensity)
+        etShellWeight = findViewById(R.id.etShellWeight)  // Bind the shell weight field
 
         // Bind preset UI elements.
         etPresetName = findViewById(R.id.etPresetName)
@@ -55,7 +57,7 @@ class SettingsActivity : AppCompatActivity() {
         btnLoadPreset = findViewById(R.id.btnLoadPreset)
         btnDeletePreset = findViewById(R.id.btnDeletePreset)
 
-        // Bind other buttons and text views.
+        // Bind other buttons.
         btnSave = findViewById(R.id.btnSaveSettings)
         btnResetDefaults = findViewById(R.id.btnResetDefaults)
         btnCloseSettings = findViewById(R.id.btnCloseSettings)
@@ -67,6 +69,7 @@ class SettingsActivity : AppCompatActivity() {
         etFrontalArea.setText(prefs.getFloat("frontal_area", DEFAULT_FRONTAL_AREA).toString())
         etSideArea.setText(prefs.getFloat("side_area", DEFAULT_SIDE_AREA).toString())
         etAirDensity.setText(prefs.getFloat("air_density", DEFAULT_AIR_DENSITY).toString())
+        etShellWeight.setText(prefs.getFloat("shell_weight", DEFAULT_SHELL_WEIGHT).toString())
 
         // Save active settings button.
         btnSave.setOnClickListener {
@@ -75,6 +78,7 @@ class SettingsActivity : AppCompatActivity() {
             val newFrontalArea = etFrontalArea.text.toString().toFloatOrNull() ?: DEFAULT_FRONTAL_AREA
             val newSideArea = etSideArea.text.toString().toFloatOrNull() ?: DEFAULT_SIDE_AREA
             val newAirDensity = etAirDensity.text.toString().toFloatOrNull() ?: DEFAULT_AIR_DENSITY
+            val newShellWeight = etShellWeight.text.toString().toFloatOrNull() ?: DEFAULT_SHELL_WEIGHT
 
             prefs.edit().apply {
                 putFloat("frontal_cd", newFrontalCd)
@@ -82,6 +86,7 @@ class SettingsActivity : AppCompatActivity() {
                 putFloat("frontal_area", newFrontalArea)
                 putFloat("side_area", newSideArea)
                 putFloat("air_density", newAirDensity)
+                putFloat("shell_weight", newShellWeight)  // Save shell weight
                 apply()
             }
             Toast.makeText(this, "Active settings saved.", Toast.LENGTH_SHORT).show()
@@ -96,6 +101,7 @@ class SettingsActivity : AppCompatActivity() {
                 putFloat("frontal_area", DEFAULT_FRONTAL_AREA)
                 putFloat("side_area", DEFAULT_SIDE_AREA)
                 putFloat("air_density", DEFAULT_AIR_DENSITY)
+                putFloat("shell_weight", DEFAULT_SHELL_WEIGHT)
                 apply()
             }
             etFrontalCd.setText(DEFAULT_FRONTAL_CD.toString())
@@ -103,10 +109,11 @@ class SettingsActivity : AppCompatActivity() {
             etFrontalArea.setText(DEFAULT_FRONTAL_AREA.toString())
             etSideArea.setText(DEFAULT_SIDE_AREA.toString())
             etAirDensity.setText(DEFAULT_AIR_DENSITY.toString())
+            etShellWeight.setText(DEFAULT_SHELL_WEIGHT.toString())
             Toast.makeText(this, "Settings reset to default", Toast.LENGTH_SHORT).show()
         }
 
-        // Save preset: check for duplicate names.
+        // Preset management (save/load/delete) remains unchanged, but include the shell weight value.
         btnSavePreset.setOnClickListener {
             val presetName = etPresetName.text.toString().trim()
             if (presetName.isEmpty()) {
@@ -130,7 +137,6 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-        // Load preset: show a list of available presets.
         btnLoadPreset.setOnClickListener {
             val presetsPrefs = getSharedPreferences("SettingsPresets", Context.MODE_PRIVATE)
             val presetsStr = presetsPrefs.getString("presets", "{}")
@@ -154,12 +160,16 @@ class SettingsActivity : AppCompatActivity() {
                     etFrontalArea.setText(presetObj.getDouble("frontal_area").toString())
                     etSideArea.setText(presetObj.getDouble("side_area").toString())
                     etAirDensity.setText(presetObj.getDouble("air_density").toString())
+                    if (presetObj.has("shell_weight")) {
+                        etShellWeight.setText(presetObj.getDouble("shell_weight").toString())
+                    } else {
+                        etShellWeight.setText(DEFAULT_SHELL_WEIGHT.toString())
+                    }
                     Toast.makeText(this, "Preset '$selectedPreset' loaded.", Toast.LENGTH_SHORT).show()
                 }
                 .show()
         }
 
-        // Delete preset: show list of presets to select for deletion.
         btnDeletePreset.setOnClickListener {
             val presetsPrefs = getSharedPreferences("SettingsPresets", Context.MODE_PRIVATE)
             val presetsStr = presetsPrefs.getString("presets", "{}")
@@ -203,6 +213,7 @@ class SettingsActivity : AppCompatActivity() {
             put("frontal_area", etFrontalArea.text.toString().toFloatOrNull() ?: DEFAULT_FRONTAL_AREA)
             put("side_area", etSideArea.text.toString().toFloatOrNull() ?: DEFAULT_SIDE_AREA)
             put("air_density", etAirDensity.text.toString().toFloatOrNull() ?: DEFAULT_AIR_DENSITY)
+            put("shell_weight", etShellWeight.text.toString().toFloatOrNull() ?: DEFAULT_SHELL_WEIGHT)
         }
         presetsJson.put(presetName, presetObj)
         presetsPrefs.edit().putString("presets", presetsJson.toString()).apply()

@@ -29,7 +29,15 @@
         android:textSize="40sp"
         android:layout_marginTop="32dp"/>
 
-    <!-- Optionally, add a button to copy or further process the code -->
+    <TextView
+        android:id="@+id/tvArtilleryCallout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="24sp"
+        android:layout_marginTop="16dp"
+        android:textColor="#FF0000"/>
+
     <Button
         android:id="@+id/btnDone"
         android:layout_width="wrap_content"

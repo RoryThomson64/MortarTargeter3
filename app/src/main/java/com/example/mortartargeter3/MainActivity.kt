@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     private lateinit var tvCurrentLocation: TextView
     private lateinit var etWindSpeed: EditText
     private lateinit var etWindDirection: EditText
-    private lateinit var etShellWeight: EditText
+    // Removed: private lateinit var etShellWeight: EditText
     private lateinit var etMuzzleVelocity: EditText
     private lateinit var tvHeightDifferenceLabel: TextView
     private lateinit var seekBarHeightDiff: SeekBar
@@ -171,14 +171,13 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
         MapsInitializer.initialize(this, Renderer.LATEST, this)
 
         // Bind UI elements.
         tvCurrentLocation = findViewById(R.id.tvCurrentLocation)
         etWindSpeed = findViewById(R.id.etWindSpeed)
         etWindDirection = findViewById(R.id.etWindDirection)
-        etShellWeight = findViewById(R.id.etShellWeight)
+        // Removed binding for etShellWeight
         etMuzzleVelocity = findViewById(R.id.etMuzzleVelocity)
         tvHeightDifferenceLabel = findViewById(R.id.tvHeightDifferenceLabel)
         seekBarHeightDiff = findViewById(R.id.seekBarHeightDiff)
@@ -262,10 +261,12 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         }
         btnRefreshLocation.setOnClickListener { getLastLocation() }
         btnMaxRange.setOnClickListener {
-            val shellWeightGrams = etShellWeight.text.toString().toDoubleOrNull()
+            val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
+            // Load shell weight from settings instead of a UI field.
+            val shellWeightGrams = prefs.getFloat("shell_weight", 0.0f).toDouble()
             val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull()
-            if (shellWeightGrams == null || muzzleVelocity == null) {
-                Toast.makeText(this, "Enter valid shell weight and muzzle velocity", Toast.LENGTH_SHORT).show()
+            if (muzzleVelocity == null) {
+                Toast.makeText(this, "Enter valid muzzle velocity", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             val mass = shellWeightGrams / 1000.0
@@ -362,15 +363,15 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
         val settings = loadDragSettings()
         val windSpeed = etWindSpeed.text.toString().toDoubleOrNull() ?: 0.0
         val windDirection = etWindDirection.text.toString().toDoubleOrNull() ?: 0.0
-        val shellWeightGrams = etShellWeight.text.toString().toDoubleOrNull() ?: 0.0
+        // Retrieve shell weight from settings.
+        val prefs = getSharedPreferences("DragSettings", Context.MODE_PRIVATE)
+        val shellWeightGrams = prefs.getFloat("shell_weight", 0.0f).toDouble()
         val shellWeight = shellWeightGrams / 1000.0
         val muzzleVelocity = etMuzzleVelocity.text.toString().toDoubleOrNull() ?: 0.0
-        // Map seekBar progress (assumed 0-100) to a height difference value.
         val heightDiff = (seekBarHeightDiff.progress - 50).toDouble()
 
         when {
             rbPlusCode.isChecked -> {
-                // Use Plus Code input.
                 val plusCodeInput = etPlusCode.text.toString().trim()
                 if (plusCodeInput.isEmpty()) {
                     Toast.makeText(this, "Enter a Plus Code", Toast.LENGTH_SHORT).show()
@@ -408,6 +409,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
             }
         }
     }
+
 
     private fun proceedWithFiringSolution(
         targetLat: Double,

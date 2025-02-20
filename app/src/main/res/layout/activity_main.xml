@@ -66,12 +66,12 @@
                 android:hint="Wind Direction (°)"
                 android:inputType="numberDecimal" />
 
-            <EditText
-                android:id="@+id/etShellWeight"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Shell Weight (g)"
-                android:inputType="numberDecimal" />
+<!--            <EditText-->
+<!--                android:id="@+id/etShellWeight"-->
+<!--                android:layout_width="match_parent"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:hint="Shell Weight (g)"-->
+<!--                android:inputType="numberDecimal" />-->
 
             <EditText
                 android:id="@+id/etMuzzleVelocity"
