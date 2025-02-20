@@ -28,5 +28,4 @@
         android:background="@android:color/transparent"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         android:contentDescription="Close Help" />
-
 </FrameLayout>
