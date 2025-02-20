@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Required Permissions -->
@@ -23,6 +22,11 @@
             android:name=".MapPickerActivity"
             android:exported="true" />
 
+        <!-- New FieldMapPickerActivity for Field Mode -->
+        <activity
+            android:name=".FieldMapPickerActivity"
+            android:exported="true" />
+
         <!-- Settings Activity -->
         <activity
             android:name=".SettingsActivity"
@@ -38,10 +42,21 @@
             android:name=".ShotsListActivity"
             android:exported="true" />
 
+        <!-- Field Mode Activity -->
+        <activity
+            android:name=".FieldActivity"
+            android:exported="true" />
+
+        <!-- Mortar (Main) Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:windowSoftInputMode="stateVisible">
+            android:windowSoftInputMode="stateVisible" />
+
+        <!-- Mode Selection Activity (Launcher) -->
+        <activity
+            android:name=".ModeSelectionActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
