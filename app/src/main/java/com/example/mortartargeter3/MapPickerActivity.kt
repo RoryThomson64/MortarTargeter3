@@ -29,7 +29,8 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
     private lateinit var btnToggleSatellite: ImageButton
     private lateinit var btnMyLocation: ImageButton
     private lateinit var tvDistance: TextView
-    private lateinit var btnConfirm: Button  // Changed to Button
+    private lateinit var btnConfirm: Button  // For confirming target selection
+    private lateinit var btnMoveMortar: Button // New button to update mortar location
 
     private var myLocation: LatLng? = null
     private var selectedLatLng: LatLng? = null
@@ -48,6 +49,7 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
         btnMyLocation = findViewById(R.id.btnMyLocation)
         tvDistance = findViewById(R.id.tvDistance)
         btnConfirm = findViewById(R.id.btnConfirm)
+        btnMoveMortar = findViewById(R.id.btnMoveMortar)
 
         // Set up button listeners
         btnClose.setOnClickListener { finish() }
@@ -91,14 +93,40 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             if (selectedLatLng == null) {
                 Toast.makeText(this, "Please select a target location", Toast.LENGTH_SHORT).show()
             } else {
-                // Compute distance from myLocation (if available) to selected location
+                // Return target coordinates.
                 val distance = myLocation?.let { origin ->
                     computeDistance(origin.latitude, origin.longitude, selectedLatLng!!.latitude, selectedLatLng!!.longitude)
                 } ?: 0.0
                 val resultIntent = Intent().apply {
+                    putExtra("update_type", "target")
                     putExtra("selected_lat", selectedLatLng!!.latitude)
                     putExtra("selected_lon", selectedLatLng!!.longitude)
                     putExtra("distance", distance)
+                }
+                setResult(Activity.RESULT_OK, resultIntent)
+                finish()
+            }
+        }
+
+        btnMoveMortar.setOnClickListener {
+            if (selectedLatLng == null) {
+                Toast.makeText(this, "Please drop a pin to set mortar location", Toast.LENGTH_SHORT).show()
+            } else {
+                myLocation = selectedLatLng
+                // Clear the map and re-add the marker for the new mortar location.
+                mMap.clear()
+                mMap.addMarker(
+                    MarkerOptions()
+                        .position(myLocation!!)
+                        .title("My Location")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                )
+                Toast.makeText(this, "Mortar location updated", Toast.LENGTH_SHORT).show()
+                // Return mortar location via intent.
+                val resultIntent = Intent().apply {
+                    putExtra("update_type", "mortar")
+                    putExtra("mortar_lat", myLocation!!.latitude)
+                    putExtra("mortar_lon", myLocation!!.longitude)
                 }
                 setResult(Activity.RESULT_OK, resultIntent)
                 finish()
@@ -155,7 +183,7 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
             )
             selectedLatLng = latLng
 
-            // Update the distance bar if myLocation is available
+            // Update the distance text if myLocation is available
             myLocation?.let { origin ->
                 val distance = computeDistance(origin.latitude, origin.longitude, latLng.latitude, latLng.longitude)
                 tvDistance.text = "Distance: ${"%.1f".format(distance)} m"
@@ -163,7 +191,7 @@ class MapPickerActivity : FragmentActivity(), OnMapReadyCallback {
         }
     }
 
-    // Compute distance between two points using the Haversine formula
+    // Compute distance between two points using the Haversine formula.
     private fun computeDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
