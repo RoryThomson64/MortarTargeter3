@@ -34,9 +34,10 @@ jobs:
       with:
         bump_version_scheme: minor
         tag_prefix: "v"
-        push_tags: true
+
     - name: Release
       uses: softprops/action-gh-release@v2
       with:
+        tag_name : ${{ steps.release.outputs.tag_name }}
         files: |
          ./app/build/outputs/apk/debug/app-debug.apk
