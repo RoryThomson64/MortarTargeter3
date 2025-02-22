@@ -122,19 +122,7 @@ class MainActivity : AppCompatActivity(), OnMapsSdkInitializedCallback {
 
                 tvCurrentLocation.text = "Current Location: ${currentLocation!!.latitude.toString()}, ${currentLocation!!.longitude.toString()}"
 
-                etManualOriginLat.setText(currentLocation?.latitude.toString());
-                etManualOriginLon.setText(currentLocation?.longitude.toString());
-
-                etManualDistance.setText(distance.toString());
-                if(currentLocation != null && etTargetLat.text.toString().toDoubleOrNull() != null&&etTargetLon.text.toString().toDoubleOrNull() != null) {
-                    val bearing = calculateBearing(
-                        currentLocation!!.latitude,
-                        currentLocation!!.longitude,
-                        etTargetLat.text.toString().toDouble(),
-                        etTargetLon.text.toString().toDouble()
-                    )
-                    etManualBearing.setText(bearing.toString());
-                }
+                
                     /*⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣶⣄⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
                     ⠀⠀⠀⠀⠀⠀⠀⢀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣦⣄⣀⡀⣠⣾⡇⠀⠀⠀⠀
                     ⠀⠀⠀⠀⠀⠀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀
