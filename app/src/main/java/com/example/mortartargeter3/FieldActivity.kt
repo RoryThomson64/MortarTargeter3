@@ -53,7 +53,7 @@ class FieldActivity : AppCompatActivity() {
 
                 // Automatically generate the artillery call using the NATO phonetic alphabet.
                 val natoCall = generateNatoCall(plusCode)
-                tvArtilleryCallout.text = "Artillery Artillery:\n$natoCall \nConfirm"
+                tvArtilleryCallout.text = "Artillery Fire Support:\n$natoCall \nConfirm"
 
                 Toast.makeText(this, "Target: $lat, $lon\nPlus Code: $plusCode", Toast.LENGTH_LONG).show()
             } else {
