@@ -4,10 +4,13 @@ on:
   push:
     branches: [master]
   workflow_dispatch:
-
+permissions:
+  contents: write
+  pull-requests: read
 jobs:
-  build:
-
+  build_and_release:
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     runs-on: ubuntu-latest
 
     steps:
