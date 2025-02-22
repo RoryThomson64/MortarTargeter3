@@ -2,8 +2,7 @@ name: Android CI
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -28,6 +27,9 @@ jobs:
       run: chmod +x gradlew
     - name: Build with Gradle
       run: ./gradlew build
+    - uses: rymndhng/release-on-push-action@master
+      with:
+        bump_version_scheme: minor
     - name: Release
       uses: softprops/action-gh-release@v2
       with:
